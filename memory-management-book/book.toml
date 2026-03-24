@@ -1,0 +1,14 @@
+[book]
+title = "Rust Memory Management: Ownership, Borrowing, and Lifetimes"
+description = "A comprehensive guide from fundamental misunderstanding to absolute mastery of Rust's memory model"
+authors = ["Principal Systems Architect"]
+language = "en"
+
+[build]
+create-missing = false
+
+[output.html]
+additional-js = ["mermaid.min.js"]
+additional-css = []
+
+[preprocessor.mermaid]

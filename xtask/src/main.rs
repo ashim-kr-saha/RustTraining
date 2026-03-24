@@ -49,6 +49,12 @@ const BOOKS: &[(&str, &str, &str, &str)] = &[
         "Build scripts, cross-compilation, coverage, CI/CD",
         "practices",
     ),
+    (
+        "memory-management-book",
+        "Rust Memory Management",
+        "Ownership, borrowing, and lifetimes deep dive",
+        "deep-dive",
+    ),
 ];
 
 fn project_root() -> PathBuf {
