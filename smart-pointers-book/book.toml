@@ -1,0 +1,15 @@
+[book]
+title = "Rust Smart Pointers & Memory Architecture: From CPU Caches to Zero-Cost Abstractions"
+description = "A deep-dive systems engineering guide covering memory layout, struct padding, cache locality, and smart pointer internals for production-grade Rust development"
+authors = ["Principal Systems Architect"]
+language = "en"
+
+[build]
+create-missing = false
+
+[output.html]
+additional-js = ["mermaid.min.js", "mermaid-init.js"]
+additional-css = []
+
+[preprocessor.mermaid]
+command = "mdbook-mermaid"
