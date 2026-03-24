@@ -1,0 +1,23 @@
+[book]
+authors = ["Principal Engineer"]
+title = "Rust's Type System & Traits: Zero-Cost Abstractions to Dynamic Dispatch"
+description = "A comprehensive guide to Rust's type system, from algebraic data types to trait objects and monomorphization."
+language = "en"
+
+[build]
+create-missing = false
+
+[output.html]
+default-theme = "light"
+git-repository-url = "https://github.com/ashim-rusttraining/RustTraining"
+additional-js = ["mermaid.min.js", "mermaid-init.js"]
+
+[output.html.playground]
+editable = true
+compile-command = "cargo build --release"
+run-command = "cargo run --release"
+
+[output.html.redirect]
+"/index.html" = "README.html"
+
+[preprocessor.toml]
