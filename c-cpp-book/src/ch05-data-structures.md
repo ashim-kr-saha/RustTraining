@@ -71,8 +71,18 @@ fn main() {
         let b = &a;
         let c = b;
         println!("{} {}", *b, *c); // The compiler automatically dereferences *c
-        // Illegal because b and still are still in scope
-        // let d = &mut a;
+        
+        let d = &mut a;
+        
+        /* 
+         * Uncommenting the line below would be cause the 
+         * program to not compile, because `b` is used 
+         * while the mutable reference `d` is live in the current scope
+         * 
+         * You cannot have a mutable and immutable reference in use in the same scope
+         * at the same time!
+         */
+        // println!("{}", *b);
     }
     let d = &mut a; // Ok: b and c are not in scope
     *d = 43;
