@@ -121,6 +121,12 @@ const BOOKS: &[(&str, &str, &str, &str)] = &[
         "API guidelines, SemVer, thiserror vs anyhow, build.rs code generation",
         "advanced",
     ),
+    (
+        "microservices-book",
+        "Rust Microservices: Axum, Tonic, Tower, and SQLx",
+        "Axum, Tonic, Tower, SQLx — REST, gRPC, compile-time queries",
+        "deep-dive",
+    ),
 ];
 
 fn project_root() -> PathBuf {
