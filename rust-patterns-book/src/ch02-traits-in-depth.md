@@ -90,9 +90,6 @@ the iterator rather than to the underlying collection:
 // }
 
 // With GATs (Rust 1.65+):
-// Note: This is a custom trait, distinct from std::iter::Iterator.
-// In real code, name it `LendingIterator` to avoid confusion with the
-// standard `Iterator` trait.
 trait LendingIterator {
     type Item<'a> where Self: 'a;
 
@@ -286,11 +283,11 @@ trait Drawable {
 let shapes: Vec<Box<dyn Drawable>> = vec![/* ... */]; // ✅ Works
 
 // ❌ NOT object-safe — uses Self in return position
-trait Clonable {
+trait Cloneable {
     fn clone_self(&self) -> Self;
     //                       ^^^^ Can't know the concrete size at runtime
 }
-// let items: Vec<Box<dyn Clonable>> = ...; // ❌ Compile error
+// let items: Vec<Box<dyn Cloneable>> = ...; // ❌ Compile error
 
 // ❌ NOT object-safe — generic method
 trait Converter {
@@ -338,13 +335,13 @@ A `&dyn Trait` (or `Box<dyn Trait>`) is a **fat pointer** — two machine words:
 │  ↓           │  ↓                                │
 │  ┌─────────┐ │  ┌──────────────────────────────┐ │
 │  │ Circle  │ │  │ vtable for <Circle as        │ │
-│  │ {       │ │  │           Drawable>           │ │
+│  │ {       │ │  │           Drawable>          │ │
 │  │  r: 5.0 │ │  │                              │ │
 │  │ }       │ │  │  drop_in_place: 0x7f...a0    │ │
-│  └─────────┘ │  │  size:           8            │ │
-│              │  │  align:          8            │ │
-│              │  │  draw:          0x7f...b4     │ │
-│              │  │  bounding_box:  0x7f...c8     │ │
+│  └─────────┘ │  │  size:           8           │ │
+│              │  │  align:          8           │ │
+│              │  │  draw:          0x7f...b4    │ │
+│              │  │  bounding_box:  0x7f...c8    │ │
 │              │  └──────────────────────────────┘ │
 └──────────────┴───────────────────────────────────┘
 ```
@@ -394,9 +391,9 @@ fn main() {
     }
 
     // Size comparison:
-    println!("size_of::<&Circle>()        = {}", std::mem::size_of::<&Circle>());
+    println!("size_of::<&Circle>()        = {}", size_of::<&Circle>());
     // → 8 bytes (one pointer — the compiler knows the type)
-    println!("size_of::<&dyn Drawable>()  = {}", std::mem::size_of::<&dyn Drawable>());
+    println!("size_of::<&dyn Drawable>()  = {}", size_of::<&dyn Drawable>());
     // → 16 bytes (data_ptr + vtable_ptr)
 }
 ```
@@ -1802,4 +1799,3 @@ fn main() {
 </details>
 
 ***
-

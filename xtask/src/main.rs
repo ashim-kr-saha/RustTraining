@@ -295,10 +295,68 @@ fn write_landing_page(site: &Path) {
     println!("  ✓ index.html");
 }
 
+/// Resolve `request_target` (HTTP request path, e.g. `/foo/bar?x=1`) to a file under `site_canon`.
+/// Returns `None` for traversal attempts, missing files, or paths that escape `site_canon` (symlinks).
+fn resolve_site_file(site_canon: &Path, request_target: &str) -> Option<PathBuf> {
+    let path_only = request_target.split('?').next()?.split('#').next()?;
+    let decoded = percent_decode_path(path_only);
+    if decoded.as_bytes().contains(&0) {
+        return None;
+    }
+    let rel = decoded.trim_start_matches('/');
+    let mut file_path = site_canon.to_path_buf();
+    if !rel.is_empty() {
+        for seg in rel.split('/').filter(|s| !s.is_empty()) {
+            if seg == ".." {
+                return None;
+            }
+            file_path.push(seg);
+        }
+    }
+    if file_path.is_dir() {
+        file_path.push("index.html");
+    }
+    let real = fs::canonicalize(&file_path).ok()?;
+    if !real.starts_with(site_canon) {
+        return None;
+    }
+    real.is_file().then_some(real)
+}
+
+fn hex_val(c: u8) -> Option<u8> {
+    match c {
+        b'0'..=b'9' => Some(c - b'0'),
+        b'a'..=b'f' => Some(c - b'a' + 10),
+        b'A'..=b'F' => Some(c - b'A' + 10),
+        _ => None,
+    }
+}
+
+fn percent_decode_path(input: &str) -> String {
+    let mut decoded = Vec::with_capacity(input.len());
+    let b = input.as_bytes();
+    let mut i = 0;
+    while i < b.len() {
+        if b[i] == b'%' && i + 2 < b.len() {
+            if let (Some(hi), Some(lo)) = (hex_val(b[i + 1]), hex_val(b[i + 2])) {
+                decoded.push(hi << 4 | lo);
+                i += 3;
+                continue;
+            }
+        }
+        decoded.push(b[i]);
+        i += 1;
+    }
+    String::from_utf8_lossy(&decoded).into_owned()
+}
+
 // ── serve ────────────────────────────────────────────────────────────
 
 fn cmd_serve() {
     let site = project_root().join("site");
+    let site_canon = fs::canonicalize(&site).expect(
+        "site/ not found — run `cargo xtask build` first (e.g. `cargo xtask serve` runs build automatically)",
+    );
     let addr = "127.0.0.1:3000";
     let listener = TcpListener::bind(addr).expect("failed to bind port 3000");
 
@@ -308,40 +366,39 @@ fn cmd_serve() {
     println!("\nServing at http://{addr}  (Ctrl+C to stop)");
 
     for stream in listener.incoming() {
-        let Ok(mut stream) = stream else { continue };
-        let mut buf = [0u8; 4096];
-        let n = stream.read(&mut buf).unwrap_or(0);
-        let request = String::from_utf8_lossy(&buf[..n]);
+        let Ok(stream) = stream else { continue };
+        handle_request(stream, &site_canon);
+    }
+}
 
-        let path = request
-            .lines()
-            .next()
-            .and_then(|line| line.split_whitespace().nth(1))
-            .unwrap_or("/");
+fn handle_request(mut stream: std::net::TcpStream, site_canon: &Path) {
+    let mut buf = [0u8; 4096];
+    let n = stream.read(&mut buf).unwrap_or(0);
+    let request = String::from_utf8_lossy(&buf[..n]);
 
-        let mut file_path = site.join(path.trim_start_matches('/'));
-        if file_path.is_dir() {
-            file_path = file_path.join("index.html");
-        }
+    let path = request
+        .lines()
+        .next()
+        .and_then(|line| line.split_whitespace().nth(1))
+        .unwrap_or("/");
 
-        if file_path.is_file() {
-            let body = fs::read(&file_path).unwrap_or_default();
-            let mime = guess_mime(&file_path);
-            let header = format!(
-                "HTTP/1.1 200 OK\r\nContent-Type: {mime}\r\nContent-Length: {}\r\n\r\n",
-                body.len()
-            );
-            let _ = stream.write_all(header.as_bytes());
-            let _ = stream.write_all(&body);
-        } else {
-            let body = b"404 Not Found";
-            let header = format!(
-                "HTTP/1.1 404 Not Found\r\nContent-Length: {}\r\n\r\n",
-                body.len()
-            );
-            let _ = stream.write_all(header.as_bytes());
-            let _ = stream.write_all(body);
-        }
+    if let Some(file_path) = resolve_site_file(site_canon, path) {
+        let body = fs::read(&file_path).unwrap_or_default();
+        let mime = guess_mime(&file_path);
+        let header = format!(
+            "HTTP/1.1 200 OK\r\nContent-Type: {mime}\r\nContent-Length: {}\r\n\r\n",
+            body.len()
+        );
+        let _ = stream.write_all(header.as_bytes());
+        let _ = stream.write_all(&body);
+    } else {
+        let body = b"404 Not Found";
+        let header = format!(
+            "HTTP/1.1 404 Not Found\r\nContent-Length: {}\r\n\r\n",
+            body.len()
+        );
+        let _ = stream.write_all(header.as_bytes());
+        let _ = stream.write_all(body);
     }
 }
 

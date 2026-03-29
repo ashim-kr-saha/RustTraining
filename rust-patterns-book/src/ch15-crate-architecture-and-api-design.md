@@ -1,4 +1,4 @@
-# 14. Crate Architecture and API Design 🟡
+# 15. Crate Architecture and API Design 🟡
 
 > **What you'll learn:**
 > - Module layout conventions and re-export strategies
@@ -229,6 +229,7 @@ Do you need ownership of the data inside the function?
 pub struct DiagRunner {
     name: String,
     config_path: PathBuf,
+    results: HashMap<String, TestResult>,
 }
 
 impl DiagRunner {

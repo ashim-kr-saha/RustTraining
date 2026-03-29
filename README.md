@@ -55,14 +55,14 @@ Pick the book that matches your background. Books are grouped by complexity so y
 
 Each book has 15–16 chapters with Mermaid diagrams, editable Rust playgrounds, exercises, and full-text search.
 
-> **Tip:** You can read the markdown source directly on GitHub, or browse the rendered site with sidebar navigation and search at the GitHub Pages site (link in the repo's About section).
+> **Tip:** You can read the markdown source directly on GitHub, or browse the rendered site with sidebar navigation and search at the [GitHub Pages site](https://microsoft.github.io/RustTraining/).
 >
 > **Local serving:** For the best reading experience (keyboard navigation between chapters, instant search, offline access), clone the repo and run:
 > ```
 > # Install Rust via rustup if you don't have it yet:
 > # https://rustup.rs/
 >
-> cargo install mdbook mdbook-mermaid
+> cargo install mdbook@0.4.52 mdbook-mermaid@0.14.0
 > cargo xtask serve          # builds all books and opens a local server
 > ```
 
@@ -78,7 +78,7 @@ Each book has 15–16 chapters with Mermaid diagrams, editable Rust playgrounds,
 Install [Rust via **rustup**](https://rustup.rs/) if you haven't already, then:
 
 ```bash
-cargo install mdbook mdbook-mermaid
+cargo install mdbook@0.4.52 mdbook-mermaid@0.14.0
 ```
 
 ### Build & serve
@@ -98,6 +98,6 @@ cd c-cpp-book && mdbook serve --open    # http://localhost:3000
 
 ### Deployment
 
-The site auto-deploys to GitHub Pages on push to `master` via `.github/workflows/pages.yml`. No manual steps needed.
+The site auto-deploys to GitHub Pages on push to `main` via `.github/workflows/pages.yml`. No manual steps needed.
 
 </details>

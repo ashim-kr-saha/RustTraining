@@ -1,4 +1,4 @@
-# 11. Unsafe Rust — Controlled Danger 🔴
+# 12. Unsafe Rust — Controlled Danger 🔴
 
 > **What you'll learn:**
 > - The five unsafe superpowers and when each is needed
@@ -11,6 +11,7 @@
 `unsafe` unlocks five operations that the compiler can't verify:
 
 ```rust
+// SAFETY: each operation is explained inline below.
 unsafe {
     // 1. Dereference a raw pointer
     let ptr: *const i32 = &42;
@@ -346,6 +347,8 @@ impl<const N: usize> FixedArena<N> {
     }
 
     /// Reset the arena — invalidates all previous allocations.
+    ///
+    /// # Safety
     /// Caller must ensure no references to arena-allocated data exist.
     pub unsafe fn reset(&self) {
         self.offset.set(0);
