@@ -1,6 +1,8 @@
 {
   "chat.tools.terminal.autoApprove": {
     "mkdir": true,
-    "cp": true
+    "cp": true,
+    "mdbook": true,
+    "cargo build": true
   }
 }

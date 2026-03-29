@@ -61,6 +61,12 @@ const BOOKS: &[(&str, &str, &str, &str)] = &[
         "Zero-cost abstractions to dynamic dispatch",
         "deep-dive",
     ),
+    (
+        "metaprogramming-book",
+        "Rust Metaprogramming",
+        "Declarative macros, proc-macros, syn, quote",
+        "advanced",
+    ),
 ];
 
 fn project_root() -> PathBuf {
