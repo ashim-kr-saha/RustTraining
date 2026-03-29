@@ -109,6 +109,12 @@ const BOOKS: &[(&str, &str, &str, &str)] = &[
         "io_uring, Glommio, shared-nothing, rkyv zero-copy serialization",
         "expert",
     ),
+    (
+        "enterprise-rust-book",
+        "Enterprise Rust: OpenTelemetry, Security, and Supply Chain Hygiene",
+        "Observability, zero-trust cryptography, SBOM, SLSA compliance",
+        "expert",
+    ),
 ];
 
 fn project_root() -> PathBuf {
