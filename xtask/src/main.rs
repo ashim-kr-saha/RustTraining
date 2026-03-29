@@ -115,6 +115,12 @@ const BOOKS: &[(&str, &str, &str, &str)] = &[
         "Observability, zero-trust cryptography, SBOM, SLSA compliance",
         "expert",
     ),
+    (
+        "api-design-book",
+        "Rust API Design & Error Architecture",
+        "API guidelines, SemVer, thiserror vs anyhow, build.rs code generation",
+        "advanced",
+    ),
 ];
 
 fn project_root() -> PathBuf {
