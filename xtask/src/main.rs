@@ -55,6 +55,12 @@ const BOOKS: &[(&str, &str, &str, &str)] = &[
         "Ownership, borrowing, and lifetimes deep dive",
         "deep-dive",
     ),
+    (
+        "type-system-traits-book",
+        "Rust's Type System & Traits",
+        "Zero-cost abstractions to dynamic dispatch",
+        "deep-dive",
+    ),
 ];
 
 fn project_root() -> PathBuf {
