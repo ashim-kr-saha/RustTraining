@@ -49,6 +49,7 @@ Pick the book that matches your background. Books are grouped by complexity so y
 | [**Rust for C# Programmers**](csharp-book/src/SUMMARY.md) | 🟢 Bridge | Swift / C# / Java → ownership & type system |
 | [**Rust for Python Programmers**](python-book/src/SUMMARY.md) | 🟢 Bridge | Dynamic → static typing, GIL-free concurrency |
 | [**Async Rust**](async-book/src/SUMMARY.md) | 🔵 Deep Dive | Tokio, streams, cancellation safety |
+| [**Rust Memory Management**](memory-management-book/src/SUMMARY.md) | 🔵 Deep Dive | Ownership, borrowing, lifetimes, smart pointers |
 | [**Rust Patterns**](rust-patterns-book/src/SUMMARY.md) | 🟡 Advanced | Pin, allocators, lock-free structures, unsafe |
 | [**Type-Driven Correctness**](type-driven-correctness-book/src/SUMMARY.md) | 🟣 Expert | Type-state, phantom types, capability tokens |
 | [**Rust Engineering Practices**](engineering-book/src/SUMMARY.md) | 🟤 Practices | Build scripts, cross-compilation, CI/CD, Miri |
