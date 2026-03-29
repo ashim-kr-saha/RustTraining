@@ -56,6 +56,7 @@ Pick the book that matches your background. Books are grouped by complexity so y
 | [**Unsafe Rust & FFI**](unsafe-ffi-book/src/SUMMARY.md) | 🟡 Advanced | unsafe, raw pointers, FFI, bindgen, cbindgen, Miri |
 | [**Type-Driven Correctness**](type-driven-correctness-book/src/SUMMARY.md) | 🟣 Expert | Type-state, phantom types, capability tokens |
 | [**Rust Engineering Practices**](engineering-book/src/SUMMARY.md) | 🟤 Practices | Build scripts, cross-compilation, CI/CD, Miri |
+| [**Rust Ecosystem, Tooling & Profiling**](tooling-profiling-book/src/SUMMARY.md) | 🟤 Practices | Cargo workspaces, Criterion, cargo-fuzz, flamegraphs, DHAT |
 
 Each book has 15–16 chapters with Mermaid diagrams, editable Rust playgrounds, exercises, and full-text search.
 

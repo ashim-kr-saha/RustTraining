@@ -85,6 +85,12 @@ const BOOKS: &[(&str, &str, &str, &str)] = &[
         "unsafe, raw pointers, FFI, bindgen, cbindgen, Miri",
         "advanced",
     ),
+    (
+        "tooling-profiling-book",
+        "Rust Ecosystem, Tooling & Profiling",
+        "Cargo workspaces, Criterion, cargo-fuzz, flamegraphs, DHAT",
+        "practices",
+    ),
 ];
 
 fn project_root() -> PathBuf {
