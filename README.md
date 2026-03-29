@@ -53,6 +53,7 @@ Pick the book that matches your background. Books are grouped by complexity so y
 | [**Rust's Type System & Traits**](type-system-traits-book/src/SUMMARY.md) | 🔵 Deep Dive | Zero-cost abstractions to dynamic dispatch |
 | [**Rust Patterns**](rust-patterns-book/src/SUMMARY.md) | 🟡 Advanced | Pin, allocators, lock-free structures, unsafe |
 | [**Rust Metaprogramming**](metaprogramming-book/src/SUMMARY.md) | 🟡 Advanced | Declarative macros, proc-macros, syn, quote |
+| [**Unsafe Rust & FFI**](unsafe-ffi-book/src/SUMMARY.md) | 🟡 Advanced | unsafe, raw pointers, FFI, bindgen, cbindgen, Miri |
 | [**Type-Driven Correctness**](type-driven-correctness-book/src/SUMMARY.md) | 🟣 Expert | Type-state, phantom types, capability tokens |
 | [**Rust Engineering Practices**](engineering-book/src/SUMMARY.md) | 🟤 Practices | Build scripts, cross-compilation, CI/CD, Miri |
 

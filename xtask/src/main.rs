@@ -79,6 +79,12 @@ const BOOKS: &[(&str, &str, &str, &str)] = &[
         "A deep-dive systems engineering guide covering memory layout, struct padding, cache locality, and smart pointer internals for production-grade Rust development",
         "deep-dive",
     ),
+    (
+        "unsafe-ffi-book",
+        "Unsafe Rust & FFI: Breaking the Rules Safely",
+        "unsafe, raw pointers, FFI, bindgen, cbindgen, Miri",
+        "advanced",
+    ),
 ];
 
 fn project_root() -> PathBuf {
