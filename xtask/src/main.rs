@@ -103,6 +103,12 @@ const BOOKS: &[(&str, &str, &str, &str)] = &[
         "LLVM internals, MIR, LTO, PGO, BOLT, SIMD intrinsics, assembly analysis",
         "expert",
     ),
+    (
+        "zero-copy-book",
+        "Zero-Copy Architecture: io_uring, Thread-Per-Core, and rkyv",
+        "io_uring, Glommio, shared-nothing, rkyv zero-copy serialization",
+        "expert",
+    ),
 ];
 
 fn project_root() -> PathBuf {

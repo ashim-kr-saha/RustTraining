@@ -56,6 +56,7 @@ Pick the book that matches your background. Books are grouped by complexity so y
 | [**Unsafe Rust & FFI**](unsafe-ffi-book/src/SUMMARY.md) | 🟡 Advanced | unsafe, raw pointers, FFI, bindgen, cbindgen, Miri |
 | [**Rust Architecture & Design Patterns**](architecture-book/src/SUMMARY.md) | 🟡 Advanced | OOP to idiomatic Rust, Typestate, Actors, ECS, Hexagonal |
 | [**Rust at the Limit: Compiler Optimizations, SIMD, and Assembly**](compiler-optimizations-book/src/SUMMARY.md) | 🟣 Expert | LLVM internals, MIR, LTO, PGO, BOLT, SIMD intrinsics |
+| [**Zero-Copy Architecture: io_uring, Thread-Per-Core, and rkyv**](zero-copy-book/src/SUMMARY.md) | 🟣 Expert | io_uring, Glommio, rkyv, shared-nothing, zero-copy I/O |
 | [**Type-Driven Correctness**](type-driven-correctness-book/src/SUMMARY.md) | 🟣 Expert | Type-state, phantom types, capability tokens |
 | [**Rust Engineering Practices**](engineering-book/src/SUMMARY.md) | 🟤 Practices | Build scripts, cross-compilation, CI/CD, Miri |
 | [**Rust Ecosystem, Tooling & Profiling**](tooling-profiling-book/src/SUMMARY.md) | 🟤 Practices | Cargo workspaces, Criterion, cargo-fuzz, flamegraphs, DHAT |
