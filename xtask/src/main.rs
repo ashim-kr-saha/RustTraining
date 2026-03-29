@@ -139,6 +139,12 @@ const BOOKS: &[(&str, &str, &str, &str)] = &[
         "Wasm linear memory, wasm-bindgen, Leptos/Yew, WASI, Cloudflare/Spin edge",
         "deep-dive",
     ),
+    (
+        "tauri-book",
+        "Rust GUIs: Building Native Apps with Tauri",
+        "Tauri v2, OS webviews, IPC commands, multi-window, system tray, security capabilities",
+        "deep-dive",
+    ),
 ];
 
 fn project_root() -> PathBuf {

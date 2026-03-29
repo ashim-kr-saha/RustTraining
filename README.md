@@ -61,6 +61,7 @@ Pick the book that matches your background. Books are grouped by complexity so y
 | [**Enterprise Rust: OpenTelemetry, Security, and Supply Chain Hygiene**](enterprise-rust-book/src/SUMMARY.md) | 🟣 Expert | Observability, zero-trust cryptography, SBOM, SLSA compliance |
 | [**Rust API Design & Error Architecture**](api-design-book/src/SUMMARY.md) | 🟡 Advanced | API guidelines, SemVer, thiserror vs anyhow, build.rs code generation |
 | [**Rust Engineering Practices**](engineering-book/src/SUMMARY.md) | 🟤 Practices | Build scripts, cross-compilation, CI/CD, Miri |
+| [**Rust GUIs: Building Native Apps with Tauri**](tauri-book/src/SUMMARY.md) | 🔵 Deep Dive | Tauri v2, OS webviews, IPC, multi-window, system tray, security |
 | [**Rust Ecosystem, Tooling & Profiling**](tooling-profiling-book/src/SUMMARY.md) | 🟤 Practices | Cargo workspaces, Criterion, cargo-fuzz, flamegraphs, DHAT |
 
 Each book has 15–16 chapters with Mermaid diagrams, editable Rust playgrounds, exercises, and full-text search.
