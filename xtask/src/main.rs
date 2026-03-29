@@ -67,6 +67,18 @@ const BOOKS: &[(&str, &str, &str, &str)] = &[
         "Declarative macros, proc-macros, syn, quote",
         "advanced",
     ),
+    (
+        "concurrency-book",
+        "Concurrency in Rust",
+        "Fearless Concurrency in Rust: From OS Threads to Lock-Free Architecture",
+        "deep-dive",
+    ),
+    (
+        "smart-pointers-book",
+        "Rust Smart Pointers & Memory Architecture",
+        "A deep-dive systems engineering guide covering memory layout, struct padding, cache locality, and smart pointer internals for production-grade Rust development",
+        "deep-dive",
+    ),
 ];
 
 fn project_root() -> PathBuf {
