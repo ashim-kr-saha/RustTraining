@@ -145,6 +145,12 @@ const BOOKS: &[(&str, &str, &str, &str)] = &[
         "Tauri v2, OS webviews, IPC commands, multi-window, system tray, security capabilities",
         "deep-dive",
     ),
+    (
+        "toolbox-book",
+        "The Rust Architect's Toolbox: Bytes, Nom, Dashmap, and Miette",
+        "bytes, nom, dashmap, miette — zero-copy I/O, parser combinators, concurrent state",
+        "advanced",
+    ),
 ];
 
 fn project_root() -> PathBuf {
