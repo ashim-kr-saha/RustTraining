@@ -133,6 +133,12 @@ const BOOKS: &[(&str, &str, &str, &str)] = &[
         "no_std, MMIO, PAC/HAL/BSP, interrupts, RTIC, Embassy async",
         "deep-dive",
     ),
+    (
+        "wasm-edge-book",
+        "WebAssembly & The Edge: Rust in the Browser and Beyond",
+        "Wasm linear memory, wasm-bindgen, Leptos/Yew, WASI, Cloudflare/Spin edge",
+        "deep-dive",
+    ),
 ];
 
 fn project_root() -> PathBuf {
