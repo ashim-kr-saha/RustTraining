@@ -3,6 +3,7 @@
     "mkdir": true,
     "cp": true,
     "mdbook": true,
-    "cargo build": true
+    "cargo build": true,
+    "cargo check": true
   }
 }

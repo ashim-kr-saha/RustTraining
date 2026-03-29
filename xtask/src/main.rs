@@ -127,6 +127,12 @@ const BOOKS: &[(&str, &str, &str, &str)] = &[
         "Axum, Tonic, Tower, SQLx — REST, gRPC, compile-time queries",
         "deep-dive",
     ),
+    (
+        "embedded-book",
+        "Bare-Metal Rust: no_std, HALs, and Embedded Systems",
+        "no_std, MMIO, PAC/HAL/BSP, interrupts, RTIC, Embassy async",
+        "deep-dive",
+    ),
 ];
 
 fn project_root() -> PathBuf {
