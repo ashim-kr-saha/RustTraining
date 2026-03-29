@@ -91,6 +91,12 @@ const BOOKS: &[(&str, &str, &str, &str)] = &[
         "Cargo workspaces, Criterion, cargo-fuzz, flamegraphs, DHAT",
         "practices",
     ),
+    (
+        "architecture-book",
+        "Rust Architecture & Design Patterns",
+        "OOP to idiomatic Rust, Typestate, Actors, ECS, Hexagonal Architecture",
+        "advanced",
+    ),
 ];
 
 fn project_root() -> PathBuf {
