@@ -97,6 +97,12 @@ const BOOKS: &[(&str, &str, &str, &str)] = &[
         "OOP to idiomatic Rust, Typestate, Actors, ECS, Hexagonal Architecture",
         "advanced",
     ),
+    (
+        "compiler-optimizations-book",
+        "Rust at the Limit: Compiler Optimizations, SIMD, and Assembly",
+        "LLVM internals, MIR, LTO, PGO, BOLT, SIMD intrinsics, assembly analysis",
+        "expert",
+    ),
 ];
 
 fn project_root() -> PathBuf {
