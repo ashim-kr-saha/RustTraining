@@ -169,6 +169,12 @@ const BOOKS: &[(&str, &str, &str, &str)] = &[
         "Consensus, clocks, replication, storage engines, transactions, HA patterns",
         "expert",
     ),
+    (
+        "staff-engineer-book",
+        "The Staff Engineer's Playbook: Navigating Ambiguity, Influence, and Impact",
+        "Staff archetypes, RFCs, cross-team influence, behavioral interviews, L6/L7 prep",
+        "practices",
+    ),
 ];
 
 fn project_root() -> PathBuf {
