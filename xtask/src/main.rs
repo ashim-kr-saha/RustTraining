@@ -157,6 +157,12 @@ const BOOKS: &[(&str, &str, &str, &str)] = &[
         "mio, epoll, reactor, wakers, cooperative scheduling, work-stealing, timer wheel",
         "expert",
     ),
+    (
+        "error-handling-book",
+        "Rust Error Handling Mastery: From Result to Panic Hooks",
+        "Result/Try internals, thiserror/anyhow/eyre, panic hooks, FFI error translation",
+        "advanced",
+    ),
 ];
 
 fn project_root() -> PathBuf {
