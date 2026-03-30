@@ -163,6 +163,12 @@ const BOOKS: &[(&str, &str, &str, &str)] = &[
         "Result/Try internals, thiserror/anyhow/eyre, panic hooks, FFI error translation",
         "advanced",
     ),
+    (
+        "distributed-systems-book",
+        "Hardcore Distributed Systems: Designing for Failure at Hyper-Scale",
+        "Consensus, clocks, replication, storage engines, transactions, HA patterns",
+        "expert",
+    ),
 ];
 
 fn project_root() -> PathBuf {
