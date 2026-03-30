@@ -151,6 +151,12 @@ const BOOKS: &[(&str, &str, &str, &str)] = &[
         "bytes, nom, dashmap, miette — zero-copy I/O, parser combinators, concurrent state",
         "advanced",
     ),
+    (
+        "tokio-internals-book",
+        "Tokio Internals: Building a Work-Stealing Runtime from Scratch",
+        "mio, epoll, reactor, wakers, cooperative scheduling, work-stealing, timer wheel",
+        "expert",
+    ),
 ];
 
 fn project_root() -> PathBuf {

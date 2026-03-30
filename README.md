@@ -63,6 +63,7 @@ Pick the book that matches your background. Books are grouped by complexity so y
 | [**Rust Engineering Practices**](engineering-book/src/SUMMARY.md) | 🟤 Practices | Build scripts, cross-compilation, CI/CD, Miri |
 | [**Rust GUIs: Building Native Apps with Tauri**](tauri-book/src/SUMMARY.md) | 🔵 Deep Dive | Tauri v2, OS webviews, IPC, multi-window, system tray, security |
 | [**The Rust Architect's Toolbox: Bytes, Nom, Dashmap, and Miette**](toolbox-book/src/SUMMARY.md) | 🟡 Advanced | bytes, nom, dashmap, miette — zero-copy I/O, parser combinators, concurrent state |
+| [**Tokio Internals: Building a Work-Stealing Runtime from Scratch**](tokio-internals-book/src/SUMMARY.md) | 🟣 Expert | mio, epoll, reactor, wakers, cooperative scheduling, work-stealing, timer wheel |
 | [**Rust Ecosystem, Tooling & Profiling**](tooling-profiling-book/src/SUMMARY.md) | 🟤 Practices | Cargo workspaces, Criterion, cargo-fuzz, flamegraphs, DHAT |
 
 Each book has 15–16 chapters with Mermaid diagrams, editable Rust playgrounds, exercises, and full-text search.
