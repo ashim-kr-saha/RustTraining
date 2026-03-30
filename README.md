@@ -67,6 +67,7 @@ Pick the book that matches your background. Books are grouped by complexity so y
 | [**Rust Ecosystem, Tooling & Profiling**](tooling-profiling-book/src/SUMMARY.md) | 🟤 Practices | Cargo workspaces, Criterion, cargo-fuzz, flamegraphs, DHAT |
 | [**Rust Error Handling Mastery: From `Result` to Panic Hooks**](error-handling-book/src/SUMMARY.md) | 🔴 Advanced | `Result`/`Try` internals, `thiserror`/`anyhow`/`eyre`, panic hooks, FFI error translation |
 | [**Hardcore Distributed Systems: Designing for Failure at Hyper-Scale**](distributed-systems-book/src/SUMMARY.md) | 🟣 Expert | Consensus, logical clocks, replication, storage engines, transactions, HA patterns |
+| [**Hardcore Algorithms & Concurrency: Lock-Free Architecture and Hardware Sympathy**](algorithms-concurrency-book/src/SUMMARY.md) | 🟣 Expert | CAS, epoch reclamation, skip lists, probabilistic structures, SPSC ring buffers |
 
 Each book has 15–16 chapters with Mermaid diagrams, editable Rust playgrounds, exercises, and full-text search.
 

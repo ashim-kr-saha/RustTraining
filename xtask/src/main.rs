@@ -170,6 +170,12 @@ const BOOKS: &[(&str, &str, &str, &str)] = &[
         "expert",
     ),
     (
+        "algorithms-concurrency-book",
+        "Hardcore Algorithms & Concurrency: Lock-Free Architecture and Hardware Sympathy",
+        "CAS, epoch reclamation, skip lists, probabilistic structures, SPSC ring buffers",
+        "expert",
+    ),
+    (
         "staff-engineer-book",
         "The Staff Engineer's Playbook: Navigating Ambiguity, Influence, and Impact",
         "Staff archetypes, RFCs, cross-team influence, behavioral interviews, L6/L7 prep",
