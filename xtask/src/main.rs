@@ -199,6 +199,12 @@ const BOOKS: &[(&str, &str, &str, &str)] = &[
         "CPU caches, MESI, TLB, CFS, io_uring, DPDK, XDP, thread-per-core",
         "expert",
     ),
+    (
+        "ai-native-book",
+        "The AI-Native Product Engineer: From Idea to Production at Light Speed",
+        "AI-assisted workflows, PRD-to-production, schema-first, CI/CD, observability",
+        "practices",
+    ),
 ];
 
 fn project_root() -> PathBuf {

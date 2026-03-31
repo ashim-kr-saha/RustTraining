@@ -71,6 +71,7 @@ Pick the book that matches your background. Books are grouped by complexity so y
 | [**Hardcore Cloud Native: Orchestration, eBPF, and Kubernetes Internals**](cloud-native-book/src/SUMMARY.md) | 🟣 Expert | Kubernetes internals, eBPF, Cilium, CRDs, multi-region platform design |
 | [**Hardcore Quantitative Finance: Low-Latency Systems and HFT Architecture**](quant-finance-book/src/SUMMARY.md) | 🟣 Expert | Market micro-structure, kernel bypass, NUMA, FPGA tick-to-trade |
 | [**Hardcore Hardware Sympathy: OS Internals and Silicon-Aware Engineering**](hardware-sympathy-book/src/SUMMARY.md) | 🟣 Expert | CPU caches, MESI, TLB, CFS scheduler, io_uring, DPDK, XDP, thread-per-core |
+| [**The AI-Native Product Engineer: From Idea to Production at Light Speed**](ai-native-book/src/SUMMARY.md) | 🟤 Practices | AI-assisted workflows, PRD-to-production pipeline, schema-first dev, CI/CD, observability |
 
 Each book has 15–16 chapters with Mermaid diagrams, editable Rust playgrounds, exercises, and full-text search.
 
