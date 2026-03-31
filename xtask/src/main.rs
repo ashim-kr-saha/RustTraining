@@ -217,6 +217,12 @@ const BOOKS: &[(&str, &str, &str, &str)] = &[
         "Cross-dialect SQL, JSONB, window functions, EXPLAIN plans, upserts",
         "deep-dive",
     ),
+    (
+        "database-internals-book",
+        "Hardcore Database Internals: From B-Trees to Distributed Query Engines",
+        "B+Trees, buffer pools, MVCC, query optimizers, vectorized execution",
+        "expert",
+    ),
 ];
 
 fn project_root() -> PathBuf {
