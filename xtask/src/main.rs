@@ -283,6 +283,12 @@ const BOOKS: &[(&str, &str, &str, &str)] = &[
         "Erasure coding, S3-compatible API, S3 multipart uploads, S3 select",
         "expert",
     ),
+    (
+        "blockchain-validator-book",
+        "System Design: Architecting a High-Throughput Blockchain Validator",
+        "P2P gossip, Merkle trie, BFT consensus, parallel execution, RocksDB",
+        "expert",
+    ),
 ];
 
 fn project_root() -> PathBuf {

@@ -72,6 +72,7 @@ Pick the book that matches your background. Books are grouped by complexity so y
 | [**Hardcore Quantitative Finance: Low-Latency Systems and HFT Architecture**](quant-finance-book/src/SUMMARY.md) | 🟣 Expert | Market micro-structure, kernel bypass, NUMA, FPGA tick-to-trade |
 | [**Hardcore Hardware Sympathy: OS Internals and Silicon-Aware Engineering**](hardware-sympathy-book/src/SUMMARY.md) | 🟣 Expert | CPU caches, MESI, TLB, CFS scheduler, io_uring, DPDK, XDP, thread-per-core |
 | [**The AI-Native Product Engineer: From Idea to Production at Light Speed**](ai-native-book/src/SUMMARY.md) | 🟤 Practices | AI-assisted workflows, PRD-to-production pipeline, schema-first dev, CI/CD, observability |
+| [**System Design: The Authoritative Multiplayer Server**](multiplayer-server-book/src/SUMMARY.md) | 🟣 Expert | Game loop, custom reliable-UDP, client-side prediction, lag compensation, spatial partitioning |
 
 Each book has 15–16 chapters with Mermaid diagrams, editable Rust playgrounds, exercises, and full-text search.
 
