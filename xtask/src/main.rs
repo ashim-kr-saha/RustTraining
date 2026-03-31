@@ -277,6 +277,12 @@ const BOOKS: &[(&str, &str, &str, &str)] = &[
         "Game loop, reliable-UDP, client prediction, lag compensation, spatial partitioning",
         "expert",
     ),
+    (
+        "object-store-book",
+        "System Design: Building an Exabyte-Scale Object Store",
+        "Erasure coding, S3-compatible API, S3 multipart uploads, S3 select",
+        "expert",
+    ),
 ];
 
 fn project_root() -> PathBuf {
