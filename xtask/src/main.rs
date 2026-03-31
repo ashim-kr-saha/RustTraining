@@ -265,6 +265,12 @@ const BOOKS: &[(&str, &str, &str, &str)] = &[
         "PagedAttention, continuous batching, tensor parallelism, SSE streaming",
         "expert",
     ),
+    (
+        "search-engine-book",
+        "System Design: Building a Distributed Search Engine",
+        "Inverted index, BM25, FST fuzzy search, scatter-gather, LSM segments",
+        "expert",
+    ),
 ];
 
 fn project_root() -> PathBuf {
