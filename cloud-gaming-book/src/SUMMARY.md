@@ -31,9 +31,3 @@
 # Part V: Input
 
 - [5. Input Polling and Virtualization 🟡](ch05-input-polling-virtualization.md)
-
----
-
-# Part V: Input
-
-- [5. Input Polling and Virtualization 🟡](ch05-input-polling-virtualization.md)
