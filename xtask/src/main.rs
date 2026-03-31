@@ -211,6 +211,12 @@ const BOOKS: &[(&str, &str, &str, &str)] = &[
         "Feature flags, A/B testing, event telemetry, data pipelines, growth loops",
         "practices",
     ),
+    (
+        "sql-rosetta-book",
+        "The SQL Rosetta Stone: Mastering Postgres, MySQL, and SQLite",
+        "Cross-dialect SQL, JSONB, window functions, EXPLAIN plans, upserts",
+        "deep-dive",
+    ),
 ];
 
 fn project_root() -> PathBuf {
