@@ -235,6 +235,12 @@ const BOOKS: &[(&str, &str, &str, &str)] = &[
         "Append-only log, io_uring, sendfile, Raft consensus, backpressure",
         "expert",
     ),
+    (
+        "e2e-messenger-book",
+        "System Design: The E2E Encrypted Omni-Platform Messenger",
+        "Signal Protocol, Flutter+Rust FFI, local-first, WebSocket relay",
+        "expert",
+    ),
 ];
 
 fn project_root() -> PathBuf {
