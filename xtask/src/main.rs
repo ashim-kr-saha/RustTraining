@@ -193,6 +193,12 @@ const BOOKS: &[(&str, &str, &str, &str)] = &[
         "Staff archetypes, RFCs, cross-team influence, behavioral interviews, L6/L7 prep",
         "practices",
     ),
+    (
+        "hardware-sympathy-book",
+        "Hardcore Hardware Sympathy: OS Internals and Silicon-Aware Engineering",
+        "CPU caches, MESI, TLB, CFS, io_uring, DPDK, XDP, thread-per-core",
+        "expert",
+    ),
 ];
 
 fn project_root() -> PathBuf {
