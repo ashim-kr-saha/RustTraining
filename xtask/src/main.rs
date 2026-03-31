@@ -271,6 +271,12 @@ const BOOKS: &[(&str, &str, &str, &str)] = &[
         "Inverted index, BM25, FST fuzzy search, scatter-gather, LSM segments",
         "expert",
     ),
+    (
+        "multiplayer-server-book",
+        "System Design: The Authoritative Multiplayer Server",
+        "Game loop, reliable-UDP, client prediction, lag compensation, spatial partitioning",
+        "expert",
+    ),
 ];
 
 fn project_root() -> PathBuf {
