@@ -27,7 +27,23 @@
 
 ---
 
-# Part IV: Performance & Capstone
+# Part IV: Query Patterns & Data Integrity
+
+- [11. Subqueries and SET Operations 🟡](ch11-subqueries-set-operations.md)
+- [12. Transactions and Isolation Levels 🟡](ch12-transactions-isolation.md)
+- [13. Views and Materialized Views 🟡](ch13-views-materialized.md)
+
+---
+
+# Part V: Programmability & Security
+
+- [14. Stored Procedures, Functions, and Triggers 🔴](ch14-stored-procs-triggers.md)
+- [15. Full-Text Search Across Dialects 🔴](ch15-full-text-search.md)
+- [16. Security: Roles, Permissions, and Row-Level Security 🔴](ch16-security-rls.md)
+
+---
+
+# Part VI: Performance & Capstone
 
 - [9. Reading the EXPLAIN Plan 🔴](ch09-explain-plans.md)
 - [10. Capstone Project: The Multi-Tenant Analytics Dashboard 🔴](ch10-capstone.md)
@@ -37,3 +53,4 @@
 # Appendices
 
 - [A. SQL Reference Card](appendix-reference-card.md)
+- [B. Cross-Dialect Migration Cookbook](appendix-migration-cookbook.md)

@@ -37,8 +37,10 @@ Every chapter follows a strict structure: a learning objectives blockquote, comp
 | 0–2 | Core Dialects, Types, DDL | 3–4 hours | You can create schemas in all three databases |
 | 3–5 | Upserts, Window Functions, CTEs | 5–7 hours | You can write analytical queries without self-joins |
 | 6–8 | Vendor-specific deep dives | 4–6 hours | You understand JSONB, InnoDB locking, and WAL mode |
+| 11–13 | Subqueries, Transactions, Views | 5–7 hours | You can write safe, correct multi-statement workflows |
+| 14–16 | Stored Procs, FTS, Security | 5–7 hours | You can build server-side logic and lock down access |
 | 9–10 | EXPLAIN plans and Capstone | 4–6 hours | You can diagnose and optimize real production queries |
-| Appendix | Reference Card | Ongoing | Your permanent cheat sheet |
+| Appendices | Reference Card + Migration Cookbook | Ongoing | Your permanent cheat sheets |
 
 ## Table of Contents
 
@@ -56,12 +58,23 @@ Every chapter follows a strict structure: a learning objectives blockquote, comp
 7. **MySQL: Storage Engines and Locking 🔴** — InnoDB vs. MyISAM, gap locks, next-key locks, and reading MySQL's `EXPLAIN` output. Optimizing for concurrent writes.
 8. **SQLite: Pragmas and In-Memory Magic 🔴** — WAL mode, in-memory databases, FTS5 full-text search, and tuning pragmas for concurrent access.
 
-### Part IV: Performance & Capstone
+### Part IV: Query Patterns & Data Integrity
+11. **Subqueries and SET Operations 🟡** — Scalar, row, and table subqueries. Correlated subqueries and `EXISTS` vs `IN`. UNION, INTERSECT, EXCEPT — and where each database diverges.
+12. **Transactions and Isolation Levels 🟡** — ACID across all three engines. Savepoints, deadlock detection, and isolation level trade-offs from READ UNCOMMITTED through SERIALIZABLE.
+13. **Views and Materialized Views 🟡** — Updatable views, `WITH CHECK OPTION`, Postgres materialized views, MySQL view algorithms, and SQLite view limitations.
+
+### Part V: Programmability & Security
+14. **Stored Procedures, Functions, and Triggers 🔴** — PL/pgSQL, MySQL stored routines, and SQLite's lack thereof. Triggers: BEFORE, AFTER, INSTEAD OF. When to use server-side logic vs application code.
+15. **Full-Text Search Across Dialects 🔴** — Postgres `tsvector`/`tsquery`/GIN, MySQL `FULLTEXT` indexes, and SQLite FTS5. Ranking, relevance, and multilingual search.
+16. **Security: Roles, Permissions, and Row-Level Security 🔴** — GRANT/REVOKE, role hierarchies, schema isolation, Postgres RLS policies, MySQL privilege system, and SQLite's trust model.
+
+### Part VI: Performance & Capstone
 9. **Reading the EXPLAIN Plan 🔴** — How to interpret `EXPLAIN ANALYZE` (Postgres), `EXPLAIN` (MySQL), and `EXPLAIN QUERY PLAN` (SQLite). Recognizing sequential scans, index-only scans, sorts, and hash joins.
 10. **Capstone Project: The Multi-Tenant Analytics Dashboard 🔴** — A billion-row analytical query written in all three dialects. CTEs, window functions, date math, and index strategy combined.
 
 ### Appendices
 A. **SQL Reference Card** — Cheat sheet for date/time functions, string manipulation, type casting, and regular expressions across Postgres, MySQL, and SQLite.
+B. **Cross-Dialect Migration Cookbook** — Step-by-step recipes for migrating schemas and data between Postgres, MySQL, and SQLite, with type mappings and common pitfalls.
 
 ```mermaid
 graph LR
@@ -77,7 +90,17 @@ graph LR
         G[Ch 7: MySQL Engines]
         H[Ch 8: SQLite Pragmas]
     end
-    subgraph "Part IV: Performance"
+    subgraph "Part IV: Query Patterns"
+        K[Ch 11: Subqueries & SET Ops]
+        L[Ch 12: Transactions]
+        M[Ch 13: Views]
+    end
+    subgraph "Part V: Programmability"
+        N[Ch 14: Stored Procs & Triggers]
+        O[Ch 15: Full-Text Search]
+        P[Ch 16: Security & RLS]
+    end
+    subgraph "Part VI: Performance"
         I[Ch 9: EXPLAIN Plans]
         J[Ch 10: Capstone]
     end
@@ -85,9 +108,16 @@ graph LR
     E --> F
     E --> G
     E --> H
+    E --> K
+    K --> L
+    L --> M
+    M --> N
+    N --> O
+    O --> P
     F --> I
     G --> I
     H --> I
+    P --> I
     I --> J
 ```
 
