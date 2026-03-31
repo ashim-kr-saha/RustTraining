@@ -253,6 +253,12 @@ const BOOKS: &[(&str, &str, &str, &str)] = &[
         "CRDTs, WebSocket sync engine, Flutter CustomPaint, snapshotting",
         "expert",
     ),
+    (
+        "serverless-compute-book",
+        "System Design: Building a Serverless Compute Platform",
+        "Firecracker MicroVMs, KVM isolation, memory snapshotting, eBPF billing",
+        "expert",
+    ),
 ];
 
 fn project_root() -> PathBuf {
