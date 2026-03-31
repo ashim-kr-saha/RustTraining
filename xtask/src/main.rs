@@ -176,6 +176,12 @@ const BOOKS: &[(&str, &str, &str, &str)] = &[
         "expert",
     ),
     (
+        "cloud-native-book",
+        "Hardcore Cloud Native: Orchestration, eBPF, and Kubernetes Internals",
+        "Kubernetes internals, eBPF, Cilium, CRDs, multi-region platform design",
+        "expert",
+    ),
+    (
         "staff-engineer-book",
         "The Staff Engineer's Playbook: Navigating Ambiguity, Influence, and Impact",
         "Staff archetypes, RFCs, cross-team influence, behavioral interviews, L6/L7 prep",

@@ -68,6 +68,7 @@ Pick the book that matches your background. Books are grouped by complexity so y
 | [**Rust Error Handling Mastery: From `Result` to Panic Hooks**](error-handling-book/src/SUMMARY.md) | 🔴 Advanced | `Result`/`Try` internals, `thiserror`/`anyhow`/`eyre`, panic hooks, FFI error translation |
 | [**Hardcore Distributed Systems: Designing for Failure at Hyper-Scale**](distributed-systems-book/src/SUMMARY.md) | 🟣 Expert | Consensus, logical clocks, replication, storage engines, transactions, HA patterns |
 | [**Hardcore Algorithms & Concurrency: Lock-Free Architecture and Hardware Sympathy**](algorithms-concurrency-book/src/SUMMARY.md) | 🟣 Expert | CAS, epoch reclamation, skip lists, probabilistic structures, SPSC ring buffers |
+| [**Hardcore Cloud Native: Orchestration, eBPF, and Kubernetes Internals**](cloud-native-book/src/SUMMARY.md) | 🟣 Expert | Kubernetes internals, eBPF, Cilium, CRDs, multi-region platform design |
 
 Each book has 15–16 chapters with Mermaid diagrams, editable Rust playgrounds, exercises, and full-text search.
 
