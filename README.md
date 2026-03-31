@@ -75,6 +75,8 @@ Pick the book that matches your background. Books are grouped by complexity so y
 | [**System Design: The Authoritative Multiplayer Server**](multiplayer-server-book/src/SUMMARY.md) | 🟣 Expert | Game loop, custom reliable-UDP, client-side prediction, lag compensation, spatial partitioning |
 | [**System Design: The Infinite Social Newsfeed**](social-newsfeed-book/src/SUMMARY.md) | 🟣 Expert | Fan-out on Write/Read, social graph, Two-Tower ML ranking, Flutter infinite scroll, Count-Min Sketch |
 | [**System Design: The Global IoT Telemetry Gateway**](iot-telemetry-book/src/SUMMARY.md) | 🟣 Expert | MQTT C10M broker, edge decimation, device twin, TSDB Gorilla compression, streaming rule engine |
+| [**System Design: The Real-Time Bidding (RTB) Ad Exchange**](rtb-ad-exchange-book/src/SUMMARY.md) | 🟣 Expert | 15ms deadline, scatter-gather fanout, Aerospike caching, ONNX fraud detection, SPSC billing pipeline |
+| [**System Design: The Zero-Trust Identity-Aware Proxy**](zero-trust-proxy-book/src/SUMMARY.md) | 🟣 Expert | BeyondCorp IAP, OIDC/JWT validation, mTLS private CA, device posture OPA engine, eBPF micro-segmentation |
 
 Each book has 15–16 chapters with Mermaid diagrams, editable Rust playgrounds, exercises, and full-text search.
 

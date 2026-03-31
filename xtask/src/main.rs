@@ -248,6 +248,12 @@ const BOOKS: &[(&str, &str, &str, &str)] = &[
         "expert",
     ),
     (
+        "flash-sale-book",
+        "System Design: The Hyper-Scale Flash Sale Engine",
+        "Virtual waiting room, Redis Lua inventory, checkout saga, anti-bot PoW",
+        "expert",
+    ),
+    (
         "collaborative-canvas-book",
         "System Design: The Real-Time Collaborative Canvas",
         "CRDTs, WebSocket sync engine, Flutter CustomPaint, snapshotting",
@@ -305,6 +311,48 @@ const BOOKS: &[(&str, &str, &str, &str)] = &[
         "autonomous-vehicle-book",
         "System Design: The Autonomous Vehicle Software Brain",
         "RTOS, sensor fusion, SLAM, MPC control, fleet simulation, OTA",
+        "expert",
+    ),
+    (
+        "rtb-ad-exchange-book",
+        "System Design: The Real-Time Bidding (RTB) Ad Exchange",
+        "15ms deadline, scatter-gather, Aerospike caching, ONNX fraud, SPSC billing",
+        "expert",
+    ),
+    (
+        "streaming-data-lakehouse-book",
+        "System Design: The Streaming Data Lakehouse",
+        "Kappa architecture, Flink, Parquet columnar, Iceberg ACID, Trino pushdown",
+        "expert",
+    ),
+    (
+        "ride-dispatch-book",
+        "System Design: The Real-Time Ride Dispatch Engine",
+        "S2 Geometry, Hungarian matching, Contraction Hierarchies, Flutter edge",
+        "expert",
+    ),
+    (
+        "git-hosting-book",
+        "System Design: The Distributed Git Hosting Platform",
+        "Git wire protocol, packfile delta compression, Raft ref replication, merge engine",
+        "expert",
+    ),
+    (
+        "zero-trust-proxy-book",
+        "System Design: The Zero-Trust Identity-Aware Proxy",
+        "BeyondCorp IAP, OIDC/JWT validation, mTLS private CA, device posture OPA engine, eBPF micro-segmentation",
+        "expert",
+    ),
+    (
+        "newsql-book",
+        "System Design: Architecting a Distributed NewSQL Database",
+        "Postgres wire protocol, KV sharding, Multi-Raft consensus, parallel 2PC, HLC/TrueTime MVCC",
+        "expert",
+    ),
+    (
+        "web-crawler-book",
+        "System Design: The Global Web Crawler",
+        "URL frontier, Bloom filter dedup, SimHash near-dupes, spider traps, tiered blob store",
         "expert",
     ),
 ];
