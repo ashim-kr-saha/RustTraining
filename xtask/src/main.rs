@@ -247,6 +247,12 @@ const BOOKS: &[(&str, &str, &str, &str)] = &[
         "Idempotency, double-entry ledger, Saga pattern, PCI compliance",
         "expert",
     ),
+    (
+        "collaborative-canvas-book",
+        "System Design: The Real-Time Collaborative Canvas",
+        "CRDTs, WebSocket sync engine, Flutter CustomPaint, snapshotting",
+        "expert",
+    ),
 ];
 
 fn project_root() -> PathBuf {
