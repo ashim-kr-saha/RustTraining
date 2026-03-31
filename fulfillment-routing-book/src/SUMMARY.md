@@ -20,4 +20,4 @@
 # Part III: Routing & Intelligence
 
 - [4. The Last-Mile Routing Algorithm (VRP) 🔴](ch04-last-mile-routing-vrp.md)
-- [5. Demand Forecasting and Inventory Placement 🔴](ch05-demand-forecasting-placement.md)
+- [5. Demand Forecasting and Inventory Placement 🔴](ch05-demand-forecasting-inventory-placement.md)

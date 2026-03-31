@@ -1,1179 +1,1255 @@
 # Chapter 3: The Identity Graph Database 🔴
 
-> **The Problem:** A single stolen credit card is easy to detect — velocity checks and ML models catch it within a few transactions. But organized fraud rings are different. They use **hundreds** of synthetic identities, rotating across stolen cards, shared devices, VPN-hopped IP addresses, and disposable email accounts. No single transaction looks suspicious. The pattern only emerges when you realize that Account A shares a device fingerprint with Account B, which shares an IP address with Account C, which previously filed a chargeback on a stolen card. You need a **graph database** that models entities and their shared attributes as nodes and edges, and a traversal engine that answers the question "how close is this transaction to known fraud?" within **10 milliseconds**.
+> **The Problem:** A single transaction looks innocent — $80 at an online electronics store. But the IP address behind it shares a device fingerprint with an account that was created yesterday from a SIM-swapped phone number, and that phone number was previously linked to an account that filed 7 chargebacks last month. Catching this requires not just scoring individual transactions, but **traversing a web of relationships** across accounts, devices, IPs, cards, emails, and phone numbers. You need a graph database — and you need to traverse it within **10 milliseconds**.
 
 ---
 
-## Why Tables Fail and Graphs Succeed
+## Why Tabular Features Are Not Enough
 
-Relational databases model the world as rows and columns. Graph databases model the world as **entities and relationships**. For fraud detection, the difference is existential.
+Traditional fraud models operate on **flat feature vectors** — each row represents a single transaction with columns like `amount`, `card_txn_count_1m`, `merchant_category`. These features capture individual behavior patterns but are blind to **relational patterns**:
 
-Consider this question: _"Does the device used in this transaction share an IP address with any account that has a chargeback rate above 5%?"_
-
-### The Relational Approach
-
-```sql
--- 3-hop traversal in SQL: device → IP → account → chargeback history
-SELECT DISTINCT a3.account_id, a3.chargeback_rate
-FROM transactions t1
-JOIN device_ips di1 ON t1.device_id = di1.device_id
-JOIN device_ips di2 ON di1.ip_address = di2.ip_address
-  AND di2.device_id != di1.device_id
-JOIN account_devices ad ON di2.device_id = ad.device_id
-JOIN accounts a3 ON ad.account_id = a3.account_id
-WHERE t1.transaction_id = $1
-  AND a3.chargeback_rate > 0.05;
-```
-
-This query involves **four JOINs** across tables with millions of rows. Even with indexes, the query planner produces a nested-loop join that scans hundreds of thousands of rows. Latency: **200–500ms** — ten times our budget.
-
-### The Graph Approach
-
-```cypher
-// Same 3-hop traversal in Cypher (Neo4j)
-MATCH (txn:Transaction {id: $txn_id})-[:USED_DEVICE]->(dev:Device)
-      -[:SEEN_AT_IP]->(ip:IP)
-      <-[:SEEN_AT_IP]-(other_dev:Device)
-      <-[:USED_DEVICE]-(other_acct:Account)
-WHERE other_acct.chargeback_rate > 0.05
-  AND other_acct <> txn.account
-RETURN other_acct.id, other_acct.chargeback_rate
-LIMIT 10
-```
-
-Graph databases store relationships as **first-class pointers** in the storage engine. Traversing an edge is an O(1) pointer dereference, not a table scan. Latency: **3–8ms** for a 3-hop traversal with moderate fan-out.
-
-### Performance Comparison
-
-| Operation | PostgreSQL (indexed) | Neo4j | Amazon Neptune |
-|---|---|---|---|
-| 1-hop: "accounts sharing this device" | ~5ms | ~1ms | ~2ms |
-| 2-hop: "devices sharing an IP with this device" | ~50ms | ~3ms | ~4ms |
-| 3-hop: "accounts connected to known fraud via shared attributes" | ~200–500ms | ~5–10ms | ~6–12ms |
-| 4-hop: "full ring detection" | Timeout | ~15–30ms | ~20–40ms |
-| Scaling with data size | Degrades rapidly (JOIN explosion) | Degrades linearly with fan-out | Degrades linearly with fan-out |
-
-The inflection point is clear: **beyond 2 hops, relational databases cannot meet real-time SLAs**.
-
----
-
-## The Identity Graph Data Model
-
-Every fraud detection system's graph has the same core structure: **entity nodes** connected by **shared-attribute edges**.
-
-```mermaid
-graph TD
-    subgraph "Entity Nodes"
-        A1["Account: alice_42"]
-        A2["Account: bob_99"]
-        A3["Account: carol_fraud<br/>⚠️ chargeback_rate: 12%"]
-    end
-
-    subgraph "Attribute Nodes"
-        D1["Device: fp_abc123"]
-        D2["Device: fp_def456"]
-        IP1["IP: 203.0.113.42"]
-        IP2["IP: 198.51.100.7"]
-        E1["Email: alice@mail.com"]
-        E2["Email: bob@mail.com"]
-        CC1["Card: 4111-xxxx-1234"]
-        CC2["Card: 5500-xxxx-5678"]
-    end
-
-    A1 -->|USED_DEVICE| D1
-    A1 -->|SEEN_AT_IP| IP1
-    A1 -->|HAS_EMAIL| E1
-    A1 -->|USED_CARD| CC1
-
-    A2 -->|USED_DEVICE| D1
-    A2 -->|SEEN_AT_IP| IP1
-    A2 -->|USED_DEVICE| D2
-    A2 -->|HAS_EMAIL| E2
-    A2 -->|USED_CARD| CC2
-
-    A3 -->|USED_DEVICE| D2
-    A3 -->|SEEN_AT_IP| IP2
-    A3 -->|USED_CARD| CC2
-
-    style A3 fill:#e74c3c,color:#fff
-    style D1 fill:#3498db,color:#fff
-    style IP1 fill:#2ecc71,color:#fff
-    style CC2 fill:#f39c12,color:#fff
-```
-
-In this graph:
-- **alice_42** and **bob_99** share device `fp_abc123` and IP `203.0.113.42`. This is suspicious but not conclusive (could be a shared household).
-- **bob_99** and **carol_fraud** share device `fp_def456` and card `5500-xxxx-5678`. Carol has a 12% chargeback rate.
-- Therefore, **alice_42** is **2 hops** from a confirmed fraudster via a shared device. The graph surfaces this connection instantly.
-
-### Node Types
-
-| Node Label | Key Property | Examples |
+| Attack Pattern | Tabular Detection | Graph Detection |
 |---|---|---|
-| `Account` | `account_id` | User accounts in the payment system |
-| `Device` | `fingerprint_id` | Browser/mobile device fingerprints (canvas hash, WebGL, etc.) |
-| `IP` | `address` | IPv4/IPv6 addresses observed during transactions |
-| `Email` | `email_hash` | SHA-256 of normalized email address |
-| `Phone` | `phone_hash` | SHA-256 of E.164-normalized phone number |
-| `Card` | `card_hash` | SHA-256 of PAN (never store raw card numbers in the graph) |
-| `Address` | `address_hash` | SHA-256 of normalized billing/shipping address |
+| Single stolen card, rapid spending | ✅ Velocity features catch it | ✅ Also detected |
+| 50 synthetic identities sharing 3 devices | ❌ Each identity looks new and clean | ✅ Device-sharing cluster is obvious |
+| Account takeover via SIM swap, new device | ❌ New device → low history, looks like legitimate new customer | ✅ Phone number links to known compromised account |
+| "Clean" mule account receives funds from 12 fraud victims | ❌ Mule's own transaction history is legitimate | ✅ Mule is 1 hop from known fraud nodes |
+| Credential stuffing ring reusing residential proxies | ❌ IP reputation service may miss residential IPs | ✅ IP→device→account fanout reveals coordinated attack |
 
-### Edge Types
+Organized fraud is fundamentally a **graph problem**. A graph database lets you answer questions that are computationally intractable with SQL JOINs:
 
-| Edge Label | From → To | Properties |
-|---|---|---|
-| `USED_DEVICE` | Account → Device | `first_seen`, `last_seen`, `txn_count` |
-| `SEEN_AT_IP` | Account → IP | `first_seen`, `last_seen`, `txn_count` |
-| `HAS_EMAIL` | Account → Email | `verified`, `created_at` |
-| `HAS_PHONE` | Account → Phone | `verified`, `created_at` |
-| `USED_CARD` | Account → Card | `first_seen`, `last_seen`, `txn_count` |
-| `SHIPPED_TO` | Account → Address | `first_seen`, `last_seen` |
-| `FLAGGED_FRAUD` | Account → (self) | `reason`, `flagged_at`, `confirmed` |
-
-### Security: What Never Enters the Graph
-
-| Data | Storage | Why |
-|---|---|---|
-| Raw PAN (card number) | ❌ Never | PCI-DSS compliance — only store tokenized/hashed references |
-| Raw email address | ❌ Never | GDPR — store `SHA-256(normalize(email))` |
-| Raw phone number | ❌ Never | Privacy — store `SHA-256(E.164(phone))` |
-| Transaction amounts | ❌ Never | Not needed for graph traversal — stored in feature store |
-| ML scores | ❌ Never | Stored in the scoring audit log, not the identity graph |
+- "How many distinct accounts have logged in from devices that share a fingerprint with this device?"
+- "Is there a path of length ≤ 3 from this account to any account flagged for fraud?"
+- "What is the fraud density of the 2-hop neighborhood around this IP address?"
 
 ---
 
-## Graph Database Selection
+## Graph Data Model
 
-### Neo4j vs. Amazon Neptune vs. TigerGraph
-
-| Criterion | Neo4j | Amazon Neptune | TigerGraph |
-|---|---|---|---|
-| **Query Language** | Cypher (declarative, SQL-like) | Gremlin (imperative) + SPARQL | GSQL (SQL-like, compiled) |
-| **Deployment** | Self-hosted or Aura (managed) | AWS-managed only | Self-hosted or Cloud |
-| **Latency (3-hop)** | 5–10ms (warm cache) | 6–12ms | 3–8ms |
-| **Write throughput** | ~50K edges/sec (cluster) | ~20K edges/sec | ~100K edges/sec |
-| **ACID transactions** | ✅ Full ACID | ✅ Full ACID | ✅ Full ACID |
-| **Horizontal scaling** | Read replicas + sharding (v5) | Auto-scaling read replicas | Native distributed |
-| **Ecosystem** | Largest community, most tooling | Tight AWS integration | Best raw performance |
-| **Cost at scale** | $$ | $$$ (AWS pricing) | $$$$ |
-
-**Our choice: Neo4j** — best balance of query expressiveness (Cypher is far more readable than Gremlin for fraud analysts), community tooling, and latency. For AWS-native deployments, Neptune is the pragmatic alternative.
-
----
-
-## Ingesting Events into the Graph
-
-The identity graph is updated from the same Kafka event stream that feeds the feature store (Chapter 2). A dedicated Flink job (or a standalone Kafka consumer) reads transaction events and upserts nodes and edges:
-
-```mermaid
-graph LR
-    subgraph "Event Bus"
-        KFK["Kafka<br/>Topic: txn.events"]
-    end
-
-    subgraph "Graph Ingestion Service"
-        GIS["Rust Consumer<br/>(rdkafka)"]
-        BATCH["Micro-batcher<br/>(100 events / 50ms)"]
-        GIS --> BATCH
-    end
-
-    subgraph "Neo4j Cluster"
-        LEADER["Leader (writes)"]
-        READ1["Read Replica 1"]
-        READ2["Read Replica 2"]
-        BATCH -->|"MERGE queries"| LEADER
-        LEADER -->|replication| READ1 & READ2
-    end
-
-    subgraph "Fraud Gateway (Ch 1)"
-        FG["Graph Query Client"]
-        FG -->|"read queries"| READ1 & READ2
-    end
-
-    KFK --> GIS
-
-    style LEADER fill:#27ae60,color:#fff
-    style GIS fill:#e67e22,color:#fff
-```
-
-### The Ingestion Pipeline in Rust
-
-```rust
-use neo4rs::{Graph, query};
-
-pub struct GraphIngestionService {
-    graph: Graph,
-}
-
-impl GraphIngestionService {
-    pub async fn new(uri: &str, user: &str, password: &str) -> anyhow::Result<Self> {
-        let graph = Graph::new(uri, user, password).await?;
-        Ok(Self { graph })
-    }
-
-    /// Upsert a transaction's entities and relationships into the graph.
-    /// Uses MERGE to create-or-update nodes and edges idempotently.
-    pub async fn ingest_transaction(&self, event: &TransactionEvent) -> anyhow::Result<()> {
-        // MERGE ensures idempotent upserts — safe for at-least-once delivery.
-        let cypher = r#"
-            // Upsert the account node
-            MERGE (acct:Account {id: $account_id})
-            ON CREATE SET acct.created_at = $timestamp
-            SET acct.last_seen = $timestamp
-
-            // Upsert the card node (hashed — never raw PAN)
-            MERGE (card:Card {hash: $card_hash})
-
-            // Upsert the device node (if present)
-            FOREACH (_ IN CASE WHEN $device_id IS NOT NULL THEN [1] ELSE [] END |
-                MERGE (dev:Device {id: $device_id})
-                MERGE (acct)-[ud:USED_DEVICE]->(dev)
-                ON CREATE SET ud.first_seen = $timestamp, ud.txn_count = 1
-                ON MATCH SET ud.last_seen = $timestamp, ud.txn_count = ud.txn_count + 1
-            )
-
-            // Upsert the IP node
-            MERGE (ip:IP {address: $ip_address})
-            MERGE (acct)-[si:SEEN_AT_IP]->(ip)
-            ON CREATE SET si.first_seen = $timestamp, si.txn_count = 1
-            ON MATCH SET si.last_seen = $timestamp, si.txn_count = si.txn_count + 1
-
-            // Upsert the card relationship
-            MERGE (acct)-[uc:USED_CARD]->(card)
-            ON CREATE SET uc.first_seen = $timestamp, uc.txn_count = 1
-            ON MATCH SET uc.last_seen = $timestamp, uc.txn_count = uc.txn_count + 1
-        "#;
-
-        self.graph
-            .run(
-                query(cypher)
-                    .param("account_id", event.account_id.as_str())
-                    .param("card_hash", hash_card(&event.card_id))
-                    .param("device_id", event.device_id.as_deref())
-                    .param("ip_address", event.ip_address.as_str())
-                    .param("timestamp", event.timestamp.to_rfc3339()),
-            )
-            .await?;
-
-        Ok(())
-    }
-}
-
-/// Hash a card number for storage in the graph.
-/// NEVER store raw PANs — PCI-DSS requires tokenization or hashing.
-fn hash_card(card_id: &str) -> String {
-    use sha2::{Sha256, Digest};
-    let mut hasher = Sha256::new();
-    hasher.update(card_id.as_bytes());
-    format!("{:x}", hasher.finalize())
-}
-```
-
-### Micro-Batching for Write Throughput
-
-Individual `MERGE` queries are expensive. We batch multiple events into a single **UNWIND** query for 10–20x better write throughput:
-
-```rust
-use std::time::Duration;
-use tokio::sync::mpsc;
-use tokio::time::interval;
-
-const BATCH_SIZE: usize = 100;
-const FLUSH_INTERVAL: Duration = Duration::from_millis(50);
-
-pub struct BatchingGraphWriter {
-    tx: mpsc::Sender<TransactionEvent>,
-}
-
-impl BatchingGraphWriter {
-    pub fn new(graph: Graph) -> Self {
-        let (tx, rx) = mpsc::channel::<TransactionEvent>(10_000);
-        tokio::spawn(Self::flush_loop(graph, rx));
-        Self { tx }
-    }
-
-    pub async fn submit(&self, event: TransactionEvent) -> anyhow::Result<()> {
-        self.tx
-            .send(event)
-            .await
-            .map_err(|_| anyhow::anyhow!("graph writer channel closed"))
-    }
-
-    async fn flush_loop(graph: Graph, mut rx: mpsc::Receiver<TransactionEvent>) {
-        let mut buffer = Vec::with_capacity(BATCH_SIZE);
-        let mut ticker = interval(FLUSH_INTERVAL);
-
-        loop {
-            tokio::select! {
-                Some(event) = rx.recv() => {
-                    buffer.push(event);
-                    if buffer.len() >= BATCH_SIZE {
-                        Self::flush_batch(&graph, &mut buffer).await;
-                    }
-                }
-                _ = ticker.tick() => {
-                    if !buffer.is_empty() {
-                        Self::flush_batch(&graph, &mut buffer).await;
-                    }
-                }
-            }
-        }
-    }
-
-    async fn flush_batch(graph: &Graph, buffer: &mut Vec<TransactionEvent>) {
-        let events: Vec<_> = buffer.drain(..).collect();
-        let count = events.len();
-
-        // Convert events to a list of parameter maps for UNWIND
-        let params: Vec<serde_json::Value> = events
-            .iter()
-            .map(|e| {
-                serde_json::json!({
-                    "account_id": e.account_id,
-                    "card_hash": hash_card(&e.card_id),
-                    "device_id": e.device_id,
-                    "ip_address": e.ip_address,
-                    "timestamp": e.timestamp.to_rfc3339(),
-                })
-            })
-            .collect();
-
-        let cypher = r#"
-            UNWIND $events AS evt
-            MERGE (acct:Account {id: evt.account_id})
-            SET acct.last_seen = evt.timestamp
-
-            MERGE (card:Card {hash: evt.card_hash})
-            MERGE (acct)-[uc:USED_CARD]->(card)
-            ON CREATE SET uc.first_seen = evt.timestamp, uc.txn_count = 1
-            ON MATCH SET uc.last_seen = evt.timestamp, uc.txn_count = uc.txn_count + 1
-
-            MERGE (ip:IP {address: evt.ip_address})
-            MERGE (acct)-[si:SEEN_AT_IP]->(ip)
-            ON CREATE SET si.first_seen = evt.timestamp, si.txn_count = 1
-            ON MATCH SET si.last_seen = evt.timestamp, si.txn_count = si.txn_count + 1
-
-            FOREACH (_ IN CASE WHEN evt.device_id IS NOT NULL THEN [1] ELSE [] END |
-                MERGE (dev:Device {id: evt.device_id})
-                MERGE (acct)-[ud:USED_DEVICE]->(dev)
-                ON CREATE SET ud.first_seen = evt.timestamp, ud.txn_count = 1
-                ON MATCH SET ud.last_seen = evt.timestamp, ud.txn_count = ud.txn_count + 1
-            )
-        "#;
-
-        match graph.run(query(cypher).param("events", params)).await {
-            Ok(_) => {
-                metrics::counter!("fraud.graph.ingested_events").increment(count as u64);
-            }
-            Err(e) => {
-                tracing::error!(error = %e, batch_size = count, "graph batch write failed");
-                metrics::counter!("fraud.graph.write_errors").increment(1);
-            }
-        }
-    }
-}
-```
-
----
-
-## Ring Detection: The 3-Hop BFS Traversal
-
-The core graph query powering the fraud gateway (Chapter 1) is a **bounded Breadth-First Search** that answers: "Starting from the current transaction's entities, how many hops to reach an account flagged for fraud?"
-
-### The Query
-
-```cypher
-// Given: account_id and ip_address from the current transaction
-// Find: any account within 3 hops that has been flagged for fraud
-// Return: the closest distance and a risk score
-
-MATCH path = shortestPath(
-    (start:Account {id: $account_id})-[*1..3]-(fraud:Account)
-)
-WHERE fraud.flagged_fraud = true
-  AND fraud <> start
-  AND ALL(r IN relationships(path) WHERE
-    r.last_seen > datetime() - duration('P30D')  // Only recent edges
-  )
-RETURN
-    fraud.id AS fraud_account,
-    length(path) AS hop_distance,
-    fraud.chargeback_rate AS fraud_chargeback_rate,
-    [n IN nodes(path) | labels(n)[0] + ':' + coalesce(n.id, n.address, n.hash)] AS path_description
-ORDER BY hop_distance ASC
-LIMIT 5
-```
-
-### Rust Graph Query Client
-
-```rust
-use neo4rs::{Graph, query, Row};
-
-pub struct IdentityGraphClient {
-    graph: Graph,
-}
-
-#[derive(Debug, Default)]
-pub struct GraphRiskResponse {
-    /// Overall risk score from graph analysis (0.0 – 1.0).
-    pub risk_score: f32,
-    /// Number of accounts sharing a device with this account.
-    pub shared_device_count: u32,
-    /// Number of accounts sharing an IP with this account.
-    pub shared_ip_count: u32,
-    /// Minimum number of hops to a known-fraud account (u32::MAX if none found).
-    pub hops_to_known_fraud: u32,
-    /// Fraud accounts discovered within 3 hops.
-    pub connected_fraud_accounts: Vec<ConnectedFraudAccount>,
-}
-
-#[derive(Debug)]
-pub struct ConnectedFraudAccount {
-    pub account_id: String,
-    pub hop_distance: u32,
-    pub chargeback_rate: f32,
-    pub path_description: Vec<String>,
-}
-
-impl IdentityGraphClient {
-    pub fn new(graph: Graph) -> Self {
-        Self { graph }
-    }
-
-    /// Compute graph-based risk for an account and IP in a transaction.
-    /// Executes three queries in parallel for the different graph features.
-    pub async fn get_risk(
-        &self,
-        account_id: &str,
-        ip_address: &str,
-    ) -> anyhow::Result<GraphRiskResponse> {
-        let (fraud_paths, shared_devices, shared_ips) = tokio::join!(
-            self.find_fraud_paths(account_id),
-            self.count_shared_devices(account_id),
-            self.count_shared_ips(ip_address),
-        );
-
-        let fraud_paths = fraud_paths?;
-        let shared_device_count = shared_devices?;
-        let shared_ip_count = shared_ips?;
-
-        let hops_to_known_fraud = fraud_paths
-            .first()
-            .map(|p| p.hop_distance)
-            .unwrap_or(u32::MAX);
-
-        // Compute a composite risk score from graph signals.
-        let risk_score = Self::compute_risk_score(
-            hops_to_known_fraud,
-            shared_device_count,
-            shared_ip_count,
-            &fraud_paths,
-        );
-
-        Ok(GraphRiskResponse {
-            risk_score,
-            shared_device_count,
-            shared_ip_count,
-            hops_to_known_fraud,
-            connected_fraud_accounts: fraud_paths,
-        })
-    }
-
-    async fn find_fraud_paths(
-        &self,
-        account_id: &str,
-    ) -> anyhow::Result<Vec<ConnectedFraudAccount>> {
-        let cypher = r#"
-            MATCH path = shortestPath(
-                (start:Account {id: $account_id})-[*1..3]-(fraud:Account)
-            )
-            WHERE fraud.flagged_fraud = true
-              AND fraud <> start
-              AND ALL(r IN relationships(path) WHERE
-                r.last_seen > datetime() - duration('P30D')
-              )
-            RETURN
-                fraud.id AS fraud_account,
-                length(path) AS hop_distance,
-                fraud.chargeback_rate AS fraud_chargeback_rate,
-                [n IN nodes(path) | labels(n)[0] + ':' + coalesce(n.id, n.address, n.hash)]
-                    AS path_description
-            ORDER BY hop_distance ASC
-            LIMIT 5
-        "#;
-
-        let mut result = self
-            .graph
-            .execute(query(cypher).param("account_id", account_id))
-            .await?;
-
-        let mut paths = Vec::new();
-        while let Some(row) = result.next().await? {
-            paths.push(ConnectedFraudAccount {
-                account_id: row.get("fraud_account")?,
-                hop_distance: row.get::<i64>("hop_distance")? as u32,
-                chargeback_rate: row.get::<f64>("fraud_chargeback_rate")? as f32,
-                path_description: row.get("path_description")?,
-            });
-        }
-
-        Ok(paths)
-    }
-
-    async fn count_shared_devices(&self, account_id: &str) -> anyhow::Result<u32> {
-        let cypher = r#"
-            MATCH (acct:Account {id: $account_id})-[:USED_DEVICE]->(dev:Device)
-                  <-[:USED_DEVICE]-(other:Account)
-            WHERE other <> acct
-              AND other.last_seen > datetime() - duration('P7D')
-            RETURN count(DISTINCT other) AS shared_count
-        "#;
-
-        let mut result = self
-            .graph
-            .execute(query(cypher).param("account_id", account_id))
-            .await?;
-
-        if let Some(row) = result.next().await? {
-            Ok(row.get::<i64>("shared_count")? as u32)
-        } else {
-            Ok(0)
-        }
-    }
-
-    async fn count_shared_ips(&self, ip_address: &str) -> anyhow::Result<u32> {
-        let cypher = r#"
-            MATCH (ip:IP {address: $ip_address})<-[:SEEN_AT_IP]-(acct:Account)
-            WHERE acct.last_seen > datetime() - duration('P7D')
-            RETURN count(DISTINCT acct) AS shared_count
-        "#;
-
-        let mut result = self
-            .graph
-            .execute(query(cypher).param("ip_address", ip_address))
-            .await?;
-
-        if let Some(row) = result.next().await? {
-            Ok(row.get::<i64>("shared_count")? as u32)
-        } else {
-            Ok(0)
-        }
-    }
-
-    /// Compute a composite risk score from graph signals.
-    /// This is a heuristic; in production, you might train a separate
-    /// graph-feature model or use these as inputs to the main fraud model.
-    fn compute_risk_score(
-        hops_to_known_fraud: u32,
-        shared_device_count: u32,
-        shared_ip_count: u32,
-        fraud_paths: &[ConnectedFraudAccount],
-    ) -> f32 {
-        let mut score: f32 = 0.0;
-
-        // Proximity to known fraud is the strongest signal.
-        match hops_to_known_fraud {
-            1 => score += 0.6,       // Direct connection to fraudster
-            2 => score += 0.3,       // One intermediary
-            3 => score += 0.1,       // Two intermediaries
-            _ => {}                  // No path found — no graph risk
-        }
-
-        // Multiple fraud paths compound the risk.
-        let path_count = fraud_paths.len() as f32;
-        score += (path_count * 0.05).min(0.2);
-
-        // Sharing devices with many accounts is suspicious.
-        if shared_device_count > 5 {
-            score += 0.1;
-        }
-
-        // Many accounts from the same IP (beyond NAT thresholds).
-        if shared_ip_count > 20 {
-            score += 0.1;
-        }
-
-        score.min(1.0)
-    }
-}
-```
-
----
-
-## Graph Traversal Performance: Staying Under 10ms
-
-A naive 3-hop traversal can explode combinatorially. If every node has 50 neighbors, a 3-hop BFS visits 50³ = 125,000 nodes. At 10ms, you have roughly **1ms per 12,500 nodes** — feasible on a warm cache, but dangerous if fan-out is uncontrolled.
-
-### Pruning Strategies
-
-| Strategy | Technique | Impact |
-|---|---|---|
-| **Time-based pruning** | Only traverse edges with `last_seen` in the last 30 days | Eliminates stale relationships |
-| **Degree cap** | Skip nodes with degree > 1,000 (e.g., shared corporate IPs) | Prevents fan-out explosion |
-| **Label filtering** | Only traverse specific edge types per hop | Reduces search space |
-| **Path limit** | Stop after finding 5 shortest paths | Bounds total work |
-| **Depth limit** | Hard cap at 3 hops maximum | Guarantees bounded traversal |
-
-### Cypher with Pruning
-
-```cypher
-// Pruned 3-hop traversal with degree cap and time filter
-MATCH (start:Account {id: $account_id})
-
-// Hop 1: start → shared attributes
-MATCH (start)-[r1]->(attr)
-WHERE r1.last_seen > datetime() - duration('P30D')
-  AND size((attr)--()) < 1000  // Skip high-degree nodes (corporate IPs, etc.)
-
-// Hop 2: shared attributes → other accounts
-MATCH (attr)<-[r2]-(other:Account)
-WHERE other <> start
-  AND r2.last_seen > datetime() - duration('P30D')
-
-// Hop 3: other accounts → their attributes → fraud accounts
-OPTIONAL MATCH (other)-[r3]->(attr2)<-[r4]-(fraud:Account {flagged_fraud: true})
-WHERE fraud <> start
-  AND fraud <> other
-  AND r3.last_seen > datetime() - duration('P30D')
-  AND r4.last_seen > datetime() - duration('P30D')
-
-WITH start, other, fraud,
-     other.chargeback_rate AS other_cb_rate,
-     CASE WHEN fraud IS NOT NULL THEN 3 ELSE NULL END AS hop_distance
-
-WHERE fraud IS NOT NULL OR other_cb_rate > 0.05
-
-RETURN
-    coalesce(fraud.id, other.id) AS risky_account,
-    CASE WHEN other_cb_rate > 0.05 THEN 2 ELSE hop_distance END AS hops,
-    coalesce(fraud.chargeback_rate, other_cb_rate) AS chargeback_rate
-ORDER BY hops ASC
-LIMIT 5
-```
-
-### Index Configuration
-
-Indexes are critical for fast lookups at traversal boundaries:
-
-```cypher
-// Unique constraints (also create indexes)
-CREATE CONSTRAINT account_id IF NOT EXISTS
-FOR (a:Account) REQUIRE a.id IS UNIQUE;
-
-CREATE CONSTRAINT device_id IF NOT EXISTS
-FOR (d:Device) REQUIRE d.id IS UNIQUE;
-
-CREATE CONSTRAINT ip_address IF NOT EXISTS
-FOR (ip:IP) REQUIRE ip.address IS UNIQUE;
-
-CREATE CONSTRAINT card_hash IF NOT EXISTS
-FOR (c:Card) REQUIRE c.hash IS UNIQUE;
-
-CREATE CONSTRAINT email_hash IF NOT EXISTS
-FOR (e:Email) REQUIRE e.hash IS UNIQUE;
-
-// Property indexes for filtering
-CREATE INDEX account_flagged IF NOT EXISTS
-FOR (a:Account) ON (a.flagged_fraud);
-
-CREATE INDEX account_chargeback IF NOT EXISTS
-FOR (a:Account) ON (a.chargeback_rate);
-
-// Relationship property index for time-based pruning (Neo4j 5.x)
-CREATE INDEX rel_last_seen IF NOT EXISTS
-FOR ()-[r:USED_DEVICE]-() ON (r.last_seen);
-
-CREATE INDEX rel_ip_last_seen IF NOT EXISTS
-FOR ()-[r:SEEN_AT_IP]-() ON (r.last_seen);
-```
-
----
-
-## Graph Size Estimation and Capacity Planning
-
-### Node and Edge Counts
-
-```
-Active accounts (30 days):          50,000,000
-Active devices (30 days):           40,000,000
-Active IPs (30 days):               30,000,000
-Active cards (30 days):             60,000,000
-Active emails:                      50,000,000
-                                   ────────────
-Total nodes:                       230,000,000
-
-Edges per account (avg):
-  USED_DEVICE:    2.0
-  SEEN_AT_IP:     3.0
-  USED_CARD:      1.5
-  HAS_EMAIL:      1.0
-                  ────
-  Total:          7.5 edges per account
-
-Total edges: 50M accounts × 7.5 = 375,000,000
-```
-
-### Memory Requirements (Neo4j)
-
-| Component | Per-Unit Cost | Total |
-|---|---|---|
-| Node (overhead + properties) | ~200 bytes | 230M × 200B = **46 GB** |
-| Relationship (overhead + props) | ~150 bytes | 375M × 150B = **56 GB** |
-| Indexes | ~30% of data | **30 GB** |
-| **Total** | | **~132 GB** |
-
-Neo4j performs best when the graph fits in memory. A single machine with 256 GB RAM handles this comfortably. For larger scales, Neo4j 5.x supports composable (sharded) databases.
-
----
-
-## Handling High-Degree Nodes (Supernodes)
-
-Some nodes are natural supernodes — a corporate office IP might connect to 100,000 accounts. Traversing through a supernode obliterates your latency budget.
-
-### The Supernode Problem
-
-```
-Normal node:   Account -> Device -> 3 other accounts   (fan-out: 3)
-Supernode:     Account -> IP(corporate) -> 100,000 accounts  (fan-out: 100,000)
-```
-
-### Solutions
-
-| Approach | Description | Tradeoff |
-|---|---|---|
-| **Degree cap in query** | `WHERE size((node)--()) < 1000` | May miss some paths |
-| **Supernode labeling** | Pre-compute and label high-degree nodes; skip in traversals | Requires periodic batch job |
-| **Virtual edges** | Pre-compute "risk-weighted" summary edges that bypass supernodes | Better latency, stale data |
-| **Subgraph sampling** | Randomly sample N neighbors of supernodes | Probabilistic, not deterministic |
-
-In practice, **degree capping** at query time combined with **supernode labeling** during ingestion covers 99% of cases:
-
-```rust
-/// During ingestion, check if a node has become a supernode.
-/// Mark it so queries can skip it efficiently.
-async fn check_and_label_supernode(
-    graph: &Graph,
-    node_label: &str,
-    node_id: &str,
-    threshold: u64,
-) -> anyhow::Result<()> {
-    let cypher = format!(
-        r#"
-        MATCH (n:{node_label} {{id: $id}})
-        WITH n, size((n)--()) AS degree
-        WHERE degree > $threshold
-        SET n:Supernode
-        SET n.degree = degree
-        "#
-    );
-
-    graph
-        .run(
-            query(&cypher)
-                .param("id", node_id)
-                .param("threshold", threshold as i64),
-        )
-        .await?;
-
-    Ok(())
-}
-```
-
----
-
-## Graph Indexing Patterns for Fraud Rings
-
-Beyond simple BFS, more sophisticated graph algorithms detect fraud rings — clusters of tightly connected accounts that exhibit coordinated behavior.
-
-### Community Detection
-
-A **fraud ring** is a community in the graph: a set of accounts that are more densely connected to each other than to the rest of the graph. Neo4j's Graph Data Science (GDS) library provides algorithms for this:
-
-```cypher
-// Project a subgraph of accounts and their shared-attribute connections
-CALL gds.graph.project(
-    'fraud-ring-detection',
-    ['Account'],
-    {
-        SHARES_DEVICE: {
-            type: 'USED_DEVICE',
-            orientation: 'UNDIRECTED'
-        },
-        SHARES_IP: {
-            type: 'SEEN_AT_IP',
-            orientation: 'UNDIRECTED'
-        }
-    }
-)
-
-// Run Louvain community detection
-CALL gds.louvain.stream('fraud-ring-detection')
-YIELD nodeId, communityId
-WITH gds.util.asNode(nodeId) AS account, communityId
-WHERE account.flagged_fraud = true
-WITH communityId, count(*) AS fraud_count, collect(account.id) AS fraud_accounts
-WHERE fraud_count >= 3
-RETURN communityId, fraud_count, fraud_accounts
-ORDER BY fraud_count DESC
-```
-
-This identifies communities (potential fraud rings) that contain 3+ known fraud accounts. All other accounts in those communities become **high-risk by association**.
-
-### PageRank for Risk Propagation
-
-Another approach: use **PageRank** to propagate risk scores through the graph. Accounts directly connected to known fraudsters inherit higher risk scores, which then propagate to their neighbors:
-
-```cypher
-// Seed fraud accounts with high risk, then propagate
-CALL gds.pageRank.stream('fraud-ring-detection', {
-    maxIterations: 20,
-    dampingFactor: 0.85,
-    sourceNodes: [
-        // Start with known fraud accounts
-        gds.util.nodeId('Account', 'carol_fraud'),
-        gds.util.nodeId('Account', 'dave_fraud')
-    ]
-})
-YIELD nodeId, score
-WITH gds.util.asNode(nodeId) AS account, score
-WHERE score > 0.01
-RETURN account.id, score AS propagated_risk
-ORDER BY score DESC
-LIMIT 100
-```
-
----
-
-## Comparison: Real-Time Traversal vs. Precomputed Graph Features
-
-There are two architectures for serving graph data to the fraud engine:
-
-| Approach | Latency | Freshness | Complexity |
-|---|---|---|---|
-| **Real-time traversal** (query graph at scoring time) | 5–10ms | Instant | High (query optimization is critical) |
-| **Precomputed features** (batch compute graph metrics, store in Redis) | < 1ms (Redis read) | Minutes–hours stale | Medium (requires periodic batch job) |
-| **Hybrid** (precomputed baseline + real-time delta) | 2–5ms | Near-instant | Highest (recommended for production) |
-
-### The Hybrid Approach
+### Nodes (Entities)
 
 ```mermaid
 graph TB
-    subgraph "Batch Pipeline (hourly)"
-        GDS["Neo4j GDS<br/>(Community Detection, PageRank)"]
-        BATCH_RDS["Redis<br/>graph_features:{account_id}<br/>(precomputed)"]
-        GDS --> BATCH_RDS
+    subgraph "Node Types"
+        ACC["🧑 Account<br/>account_id<br/>created_at<br/>risk_label"]
+        DEV["📱 Device<br/>fingerprint_id<br/>os, browser<br/>screen_resolution"]
+        IP["🌐 IP Address<br/>ip_address<br/>geo_country<br/>is_vpn, is_proxy"]
+        CARD["💳 Card<br/>card_hash<br/>bin, issuer<br/>country"]
+        EMAIL["📧 Email<br/>email_hash<br/>domain<br/>disposable?"]
+        PHONE["📞 Phone<br/>phone_hash<br/>carrier<br/>sim_swap_date"]
+        ADDR["🏠 Address<br/>address_hash<br/>postal_code"]
     end
 
-    subgraph "Real-Time Pipeline (per-request)"
-        NEO["Neo4j Read Replica<br/>(3-hop BFS)"]
-    end
+    ACC --- DEV
+    ACC --- IP
+    ACC --- CARD
+    ACC --- EMAIL
+    ACC --- PHONE
+    ACC --- ADDR
+    DEV --- IP
 
-    subgraph "Fraud Gateway"
-        FG["Graph Risk Assembler"]
-        BATCH_RDS -->|"precomputed: community_id, pagerank"| FG
-        NEO -->|"real-time: hops_to_fraud, shared_devices"| FG
-        FG -->|"composite graph_risk_score"| ML["ML Inference"]
-    end
-
-    style GDS fill:#27ae60,color:#fff
-    style NEO fill:#3498db,color:#fff
-    style FG fill:#e67e22,color:#fff
+    style ACC fill:#e74c3c,color:#fff
+    style DEV fill:#3498db,color:#fff
+    style IP fill:#2ecc71,color:#fff
+    style CARD fill:#f39c12,color:#fff
+    style EMAIL fill:#9b59b6,color:#fff
+    style PHONE fill:#1abc9c,color:#fff
+    style ADDR fill:#e67e22,color:#fff
 ```
 
-Precomputed features provide **stable baseline signals** (community membership, PageRank). Real-time traversals provide **fresh signals** (new connections since the last batch run). The fraud gateway combines both:
+### Edges (Relationships)
+
+| Edge Type | From | To | Properties |
+|---|---|---|---|
+| `USES_DEVICE` | Account | Device | `first_seen`, `last_seen`, `session_count` |
+| `LOGGED_IN_FROM` | Account | IP | `first_seen`, `last_seen`, `session_count` |
+| `PAYS_WITH` | Account | Card | `added_at`, `is_primary` |
+| `REGISTERED_WITH` | Account | Email | `verified`, `registered_at` |
+| `VERIFIED_WITH` | Account | Phone | `verified_at`, `sim_swap_detected` |
+| `SHIPS_TO` | Account | Address | `address_type`, `last_used` |
+| `SEEN_ON` | Device | IP | `first_seen`, `last_seen` |
+
+### Why This Model Works
+
+The identity graph is **bipartite-like**: Account nodes connect to attribute nodes (Device, IP, Card, etc.), and attribute nodes implicitly connect accounts that share them. Two accounts sharing a device fingerprint are 2 hops apart: `Account_A → Device_X ← Account_B`.
+
+This means:
+
+- **1-hop**: Direct attributes of an account ("What devices has this account used?")
+- **2-hop**: Shared-attribute neighbors ("What other accounts share a device with this account?")
+- **3-hop**: Extended neighborhood ("What devices do *those* accounts use, and who else uses them?")
+
+3-hop traversals are the sweet spot for fraud detection — deep enough to catch organized rings, shallow enough to compute within 10ms.
+
+---
+
+## Rust Graph Client Architecture
+
+### The Graph Service Interface
 
 ```rust
-#[derive(Debug, Default)]
-pub struct HybridGraphFeatures {
-    // -- Precomputed (from Redis, updated hourly) --
-    pub community_id: Option<u64>,
-    pub community_fraud_rate: f32,
-    pub pagerank_score: f32,
+use chrono::{DateTime, Utc};
+use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
+use uuid::Uuid;
 
-    // -- Real-time (from Neo4j, computed per-request) --
-    pub hops_to_known_fraud: u32,
-    pub shared_device_count: u32,
-    pub shared_ip_count: u32,
+/// Risk signal computed from graph traversal.
+#[derive(Debug, Serialize, Deserialize)]
+pub struct GraphRiskSignal {
+    /// Unique request correlation ID.
+    pub request_id: Uuid,
+    /// The account being evaluated.
+    pub account_id: String,
+    /// Composite graph risk score (0.0 = safe, 1.0 = fraud).
+    pub graph_risk_score: f64,
+    /// Number of fraud-flagged accounts within N hops.
+    pub fraud_neighbor_count: u32,
+    /// Shortest path length to the nearest fraud node (-1 if none found).
+    pub shortest_path_to_fraud: i32,
+    /// Number of distinct accounts sharing at least one device.
+    pub shared_device_account_count: u32,
+    /// Number of distinct accounts sharing at least one IP.
+    pub shared_ip_account_count: u32,
+    /// Whether this account is part of a detected ring.
+    pub is_ring_member: bool,
+    /// Cluster density: edges / (nodes * (nodes - 1)) in the local subgraph.
+    pub cluster_density: f64,
+    /// Traversal latency in microseconds.
+    pub traversal_latency_us: u64,
+    /// Detailed per-hop breakdown.
+    pub hop_details: Vec<HopDetail>,
 }
 
-impl HybridGraphFeatures {
-    pub fn composite_risk_score(&self) -> f32 {
-        let mut score = 0.0_f32;
+#[derive(Debug, Serialize, Deserialize)]
+pub struct HopDetail {
+    pub hop: u8,
+    pub nodes_visited: u32,
+    pub fraud_nodes_found: u32,
+    pub edge_types_traversed: Vec<String>,
+    pub latency_us: u64,
+}
+```
 
-        // Precomputed signals (stable, high-coverage)
-        score += self.community_fraud_rate * 0.3;
-        score += (self.pagerank_score * 10.0).min(0.2);
+### The Graph Traversal Trait
 
-        // Real-time signals (fresh, high-precision)
-        match self.hops_to_known_fraud {
-            1 => score += 0.5,
-            2 => score += 0.25,
-            3 => score += 0.1,
-            _ => {}
-        }
+```rust
+use async_trait::async_trait;
 
-        if self.shared_device_count > 5 {
-            score += 0.1;
-        }
-        if self.shared_ip_count > 20 {
-            score += 0.05;
-        }
+/// Trait abstracting the graph database backend.
+/// Implementations exist for Neo4j (Bolt protocol), Amazon Neptune
+/// (Gremlin/openCypher), and an in-memory test double.
+#[async_trait]
+pub trait GraphTraversal: Send + Sync {
+    /// Perform a bounded BFS from the given account, computing risk signals.
+    async fn compute_risk(
+        &self,
+        account_id: &str,
+        max_hops: u8,
+        timeout_ms: u64,
+    ) -> Result<GraphRiskSignal, GraphError>;
 
-        score.min(1.0)
-    }
+    /// Ingest a new edge into the identity graph.
+    async fn upsert_edge(
+        &self,
+        edge: IdentityEdge,
+    ) -> Result<(), GraphError>;
+
+    /// Mark an account as confirmed fraud (propagates label for training).
+    async fn mark_fraud(
+        &self,
+        account_id: &str,
+        reason: &str,
+        confirmed_at: DateTime<Utc>,
+    ) -> Result<(), GraphError>;
+}
+
+#[derive(Debug)]
+pub struct IdentityEdge {
+    pub from_type: NodeType,
+    pub from_id: String,
+    pub to_type: NodeType,
+    pub to_id: String,
+    pub edge_type: String,
+    pub properties: HashMap<String, serde_json::Value>,
+    pub observed_at: DateTime<Utc>,
+}
+
+#[derive(Debug, Clone, Copy)]
+pub enum NodeType {
+    Account,
+    Device,
+    IpAddress,
+    Card,
+    Email,
+    Phone,
+    Address,
+}
+
+#[derive(Debug, thiserror::Error)]
+pub enum GraphError {
+    #[error("graph traversal timed out after {0}ms")]
+    Timeout(u64),
+    #[error("graph database connection error: {0}")]
+    Connection(String),
+    #[error("node not found: {0}")]
+    NodeNotFound(String),
+    #[error("traversal exceeded budget: visited {visited} nodes, limit {limit}")]
+    BudgetExceeded { visited: u32, limit: u32 },
 }
 ```
 
 ---
 
-## Monitoring the Identity Graph
+## Neo4j Query Design: Cypher for Fraud
 
-### Key Metrics
+### The 3-Hop Fraud Neighbor Query
 
-| Metric | Target | Alert Threshold |
-|---|---|---|
-| `graph.query.latency_ms` P99 | < 10ms | > 15ms |
-| `graph.query.timeout_rate` | < 0.1% | > 1% |
-| `graph.ingestion.lag_events` | < 1,000 | > 10,000 |
-| `graph.ingestion.errors` | 0 | > 0 sustained |
-| `graph.nodes.total` | Monitored, not alerted | Trend analysis |
-| `graph.edges.total` | Monitored, not alerted | Trend analysis |
-| `graph.supernodes.count` | < 100 | > 500 |
-| `graph.memory.heap_used_pct` | < 80% | > 90% |
+This is the core query that powers the graph risk signal. It starts from a given account, traverses up to 3 hops across identity edges, and collects fraud-related signals:
 
-### Graph Staleness Detection
+```cypher
+// 3-hop BFS from the target account with pruning.
+// Returns fraud neighbors, shared device/IP counts, and ring membership.
+MATCH (target:Account {account_id: $account_id})
 
-If the ingestion pipeline stops, the graph becomes stale and fraud connections are missed. Detect this with a **freshness probe**:
-
-```rust
-/// Periodically check that the graph is receiving fresh data.
-async fn check_graph_freshness(graph: &Graph) -> anyhow::Result<()> {
-    let cypher = r#"
-        MATCH ()-[r]->()
-        RETURN max(r.last_seen) AS most_recent_edge
-    "#;
-
-    let mut result = graph.execute(query(cypher)).await?;
-    if let Some(row) = result.next().await? {
-        let most_recent: String = row.get("most_recent_edge")?;
-        let most_recent = chrono::DateTime::parse_from_rfc3339(&most_recent)?;
-        let staleness = chrono::Utc::now()
-            .signed_duration_since(most_recent)
-            .num_seconds();
-
-        metrics::gauge!("fraud.graph.staleness_seconds").set(staleness as f64);
-
-        if staleness > 300 {
-            tracing::error!(
-                staleness_seconds = staleness,
-                "graph is stale — ingestion may be down"
-            );
-        }
-    }
-
-    Ok(())
+// Hop 1–3: traverse identity edges
+CALL {
+    WITH target
+    MATCH path = (target)-[:USES_DEVICE|LOGGED_IN_FROM|PAYS_WITH|REGISTERED_WITH|VERIFIED_WITH*1..3]-(neighbor:Account)
+    WHERE neighbor <> target
+      AND neighbor.account_id <> $account_id
+    WITH neighbor, min(length(path)) AS distance
+    RETURN neighbor, distance
 }
+
+// Compute signals
+WITH target,
+     collect(DISTINCT neighbor) AS neighbors,
+     [n IN collect({node: neighbor, dist: distance}) WHERE n.node.risk_label = 'fraud'] AS fraud_neighbors
+
+// Shared device count
+OPTIONAL MATCH (target)-[:USES_DEVICE]->(d:Device)<-[:USES_DEVICE]-(other:Account)
+WHERE other <> target
+WITH target, neighbors, fraud_neighbors,
+     count(DISTINCT other) AS shared_device_accounts
+
+// Shared IP count
+OPTIONAL MATCH (target)-[:LOGGED_IN_FROM]->(ip:IpAddress)<-[:LOGGED_IN_FROM]-(other2:Account)
+WHERE other2 <> target
+WITH target, neighbors, fraud_neighbors, shared_device_accounts,
+     count(DISTINCT other2) AS shared_ip_accounts
+
+RETURN {
+    total_neighbors: size(neighbors),
+    fraud_neighbor_count: size(fraud_neighbors),
+    shortest_path_to_fraud: CASE
+        WHEN size(fraud_neighbors) > 0
+        THEN min([fn IN fraud_neighbors | fn.dist])
+        ELSE -1
+    END,
+    shared_device_account_count: shared_device_accounts,
+    shared_ip_account_count: shared_ip_accounts
+} AS signals
 ```
+
+### Index Strategy
+
+Graph traversal performance depends critically on how quickly you can find the starting node and fan out. These indexes are non-negotiable:
+
+```cypher
+-- Unique constraint + index on every entity's primary key.
+CREATE CONSTRAINT account_id_unique IF NOT EXISTS
+FOR (a:Account) REQUIRE a.account_id IS UNIQUE;
+
+CREATE CONSTRAINT device_fingerprint_unique IF NOT EXISTS
+FOR (d:Device) REQUIRE d.fingerprint_id IS UNIQUE;
+
+CREATE CONSTRAINT ip_address_unique IF NOT EXISTS
+FOR (ip:IpAddress) REQUIRE ip.ip_address IS UNIQUE;
+
+CREATE CONSTRAINT card_hash_unique IF NOT EXISTS
+FOR (c:Card) REQUIRE c.card_hash IS UNIQUE;
+
+CREATE CONSTRAINT email_hash_unique IF NOT EXISTS
+FOR (e:Email) REQUIRE e.email_hash IS UNIQUE;
+
+CREATE CONSTRAINT phone_hash_unique IF NOT EXISTS
+FOR (p:Phone) REQUIRE p.phone_hash IS UNIQUE;
+
+-- Composite index for fast fraud neighbor filtering.
+CREATE INDEX account_risk_label IF NOT EXISTS
+FOR (a:Account) ON (a.risk_label);
+
+-- Relationship property index for temporal filtering.
+CREATE INDEX uses_device_last_seen IF NOT EXISTS
+FOR ()-[r:USES_DEVICE]-() ON (r.last_seen);
+```
+
+### Query Performance: Why 3 Hops in 10ms Is Achievable
+
+| Hop Depth | Typical Fanout per Node | Cumulative Nodes | Neo4j Traversal Time |
+|---|---|---|---|
+| 0 (start) | 1 | 1 | < 0.1ms (index lookup) |
+| 1 | ~15 (devices, IPs, cards, etc.) | 16 | ~1ms |
+| 2 | ~8 per attribute node | ~128 | ~3ms |
+| 3 | ~8 per attribute node | ~1,024 | ~6ms |
+| **Total** | — | ~1,024 | **~10ms** |
+
+The key to staying within budget: **prune aggressively**.
 
 ---
 
-## Neo4j Deployment: Read Replicas for the Read Path
+## Pruning Strategies for Latency Control
 
-The fraud gateway issues read queries at 50,000 TPS. A single Neo4j instance cannot handle this. We use a **leader + read replicas** topology:
+Unconstrained graph traversal is dangerous. A single high-fanout node (e.g., a shared VPN IP used by 10,000 accounts) can blow up traversal time exponentially. We use three pruning strategies:
 
-| Instance | Role | Queries |
-|---|---|---|
-| Leader | Handles all writes (MERGE from ingestion) | ~50K writes/sec |
-| Read Replica 1 | Serves fraud gateway queries (region A) | ~25K reads/sec |
-| Read Replica 2 | Serves fraud gateway queries (region B) | ~25K reads/sec |
-| Read Replica 3 | Serves batch GDS jobs (community detection, PageRank) | Batch queries only |
+### 1. Fanout Limits
 
-Replication lag from leader to read replicas is typically **< 100ms** — acceptable because the graph captures long-term relationships, not per-second state.
+Cap the number of neighbors expanded per node:
 
 ```rust
-/// The graph client uses a read-replica-aware connection.
-pub struct IdentityGraphClient {
-    /// Write path: leader instance.
-    write_graph: Graph,
-    /// Read path: load-balanced across read replicas.
-    read_graph: Graph,
-}
-
-impl IdentityGraphClient {
-    pub async fn new(
-        leader_uri: &str,
-        replica_uri: &str,
-        user: &str,
-        password: &str,
-    ) -> anyhow::Result<Self> {
-        let write_graph = Graph::new(leader_uri, user, password).await?;
-        let read_graph = Graph::new(replica_uri, user, password).await?;
-        Ok(Self { write_graph, read_graph })
-    }
-
-    /// Reading always goes to replicas.
-    pub async fn get_risk(&self, account_id: &str, ip: &str) -> anyhow::Result<GraphRiskResponse> {
-        // Uses self.read_graph for all queries
-        // ...
-        todo!()
-    }
-}
-```
-
----
-
-## Exercises
-
-### Exercise 1: Build an In-Memory Identity Graph
-
-Implement a simplified identity graph in Rust using `petgraph`. Model accounts, devices, and IPs as nodes. Implement a BFS function that finds the shortest path between any account and a "flagged fraud" account.
-
-<details>
-<summary>Solution</summary>
-
-```rust
-use petgraph::graph::{Graph, NodeIndex};
-use petgraph::algo::dijkstra;
-use petgraph::visit::EdgeRef;
-use std::collections::{HashMap, VecDeque};
-
+/// Configuration for graph traversal pruning.
 #[derive(Debug, Clone)]
-enum Node {
-    Account { id: String, flagged_fraud: bool },
-    Device { id: String },
-    Ip { address: String },
+pub struct TraversalConfig {
+    /// Maximum hops from the starting account.
+    pub max_hops: u8,
+    /// Maximum neighbors to expand per node per hop.
+    /// High-fanout nodes (shared IPs, popular devices) are capped here.
+    pub max_fanout_per_node: u32,
+    /// Maximum total nodes visited before aborting.
+    pub max_total_nodes: u32,
+    /// Hard timeout for the entire traversal.
+    pub timeout_ms: u64,
+    /// Edge types to traverse (empty = all).
+    pub allowed_edge_types: Vec<String>,
+    /// Minimum recency: ignore edges older than this.
+    pub edge_recency_days: u32,
 }
 
-fn main() {
-    let mut graph = Graph::<Node, &str>::new();
-
-    // Create nodes
-    let alice = graph.add_node(Node::Account {
-        id: "alice".into(),
-        flagged_fraud: false,
-    });
-    let bob = graph.add_node(Node::Account {
-        id: "bob".into(),
-        flagged_fraud: false,
-    });
-    let carol = graph.add_node(Node::Account {
-        id: "carol".into(),
-        flagged_fraud: true,
-    });
-    let dev1 = graph.add_node(Node::Device { id: "fp_abc".into() });
-    let ip1 = graph.add_node(Node::Ip { address: "1.2.3.4".into() });
-    let dev2 = graph.add_node(Node::Device { id: "fp_def".into() });
-
-    // Create edges
-    graph.add_edge(alice, dev1, "USED_DEVICE");
-    graph.add_edge(bob, dev1, "USED_DEVICE");
-    graph.add_edge(bob, ip1, "SEEN_AT_IP");
-    graph.add_edge(carol, ip1, "SEEN_AT_IP");
-    graph.add_edge(carol, dev2, "USED_DEVICE");
-
-    // BFS: find shortest path from alice to any fraud account
-    let hops = bfs_to_fraud(&graph, alice, 3);
-    match hops {
-        Some(h) => println!("Alice is {h} hops from fraud"),
-        None => println!("No fraud connection found within 3 hops"),
+impl Default for TraversalConfig {
+    fn default() -> Self {
+        Self {
+            max_hops: 3,
+            max_fanout_per_node: 50,
+            max_total_nodes: 2_000,
+            timeout_ms: 10,
+            allowed_edge_types: vec![],
+            edge_recency_days: 90,
+        }
     }
 }
+```
 
-fn bfs_to_fraud(
-    graph: &Graph<Node, &str>,
-    start: NodeIndex,
-    max_depth: u32,
-) -> Option<u32> {
-    let mut visited = HashMap::new();
-    let mut queue = VecDeque::new();
+### 2. Temporal Pruning
 
-    visited.insert(start, 0u32);
-    queue.push_back(start);
+Only traverse edges observed within the last N days. A device shared 3 years ago is irrelevant:
 
-    while let Some(current) = queue.pop_front() {
-        let depth = visited[&current];
-        if depth > max_depth {
+```cypher
+MATCH (target:Account {account_id: $account_id})
+      -[r:USES_DEVICE]->(d:Device)
+WHERE r.last_seen > datetime() - duration({days: $recency_days})
+RETURN d
+```
+
+### 3. High-Fanout Node Filtering
+
+Some nodes are "toxic" for traversal — shared VPN endpoints, popular email domains, common device fingerprints. We maintain a **blacklist of high-fanout nodes** that are skipped during traversal:
+
+```rust
+use std::collections::HashSet;
+use std::sync::Arc;
+use tokio::sync::RwLock;
+
+/// Maintains a set of node IDs that should be skipped during traversal
+/// because they have excessively high fanout (e.g., a VPN IP used by
+/// 50,000+ accounts).
+pub struct HighFanoutFilter {
+    blocked_nodes: Arc<RwLock<HashSet<String>>>,
+    fanout_threshold: u32,
+}
+
+impl HighFanoutFilter {
+    pub fn new(fanout_threshold: u32) -> Self {
+        Self {
+            blocked_nodes: Arc::new(RwLock::new(HashSet::new())),
+            fanout_threshold,
+        }
+    }
+
+    /// Check if a node should be skipped during traversal.
+    pub async fn should_skip(&self, node_id: &str) -> bool {
+        self.blocked_nodes.read().await.contains(node_id)
+    }
+
+    /// Periodically refresh the blocked set from the graph database.
+    /// This runs as a background task, e.g., every 5 minutes.
+    pub async fn refresh(&self, graph: &dyn GraphTraversal) -> Result<(), GraphError> {
+        // Query: MATCH (n) WHERE size((n)--()) > $threshold RETURN n.id
+        // In practice, this is a scheduled Cypher query.
+        let _ = graph; // placeholder for actual query
+        Ok(())
+    }
+}
+```
+
+---
+
+## The BFS Traversal Engine
+
+Here is the core Rust implementation of the bounded BFS that powers the graph risk computation:
+
+```rust
+use std::collections::{HashMap, HashSet, VecDeque};
+use std::time::Instant;
+
+/// A node discovered during BFS.
+#[derive(Debug, Clone)]
+struct DiscoveredNode {
+    node_id: String,
+    node_type: NodeType,
+    hop_distance: u8,
+    is_fraud: bool,
+    parent_edge_type: String,
+}
+
+/// Result of a bounded BFS traversal.
+struct BfsResult {
+    nodes: Vec<DiscoveredNode>,
+    fraud_nodes: Vec<DiscoveredNode>,
+    visited_count: u32,
+    max_hop_reached: u8,
+    timed_out: bool,
+}
+
+/// Perform a bounded BFS from the given start node.
+///
+/// This is the algorithmic core of the graph risk engine. It uses a standard
+/// BFS with three pruning mechanisms: fanout cap, total node budget, and
+/// wall-clock timeout.
+async fn bounded_bfs(
+    start_account_id: &str,
+    config: &TraversalConfig,
+    graph: &dyn GraphTraversal,
+    fanout_filter: &HighFanoutFilter,
+) -> Result<BfsResult, GraphError> {
+    let start = Instant::now();
+    let mut visited: HashSet<String> = HashSet::new();
+    let mut queue: VecDeque<(String, NodeType, u8, String)> = VecDeque::new();
+    let mut discovered: Vec<DiscoveredNode> = Vec::new();
+    let mut fraud_nodes: Vec<DiscoveredNode> = Vec::new();
+    let mut timed_out = false;
+
+    // Seed the BFS with the starting account.
+    visited.insert(start_account_id.to_string());
+    queue.push_back((
+        start_account_id.to_string(),
+        NodeType::Account,
+        0,
+        "ROOT".to_string(),
+    ));
+
+    while let Some((node_id, node_type, depth, edge_type)) = queue.pop_front() {
+        // Check timeout.
+        if start.elapsed().as_millis() as u64 >= config.timeout_ms {
+            timed_out = true;
+            break;
+        }
+
+        // Check hop limit.
+        if depth > config.max_hops {
             continue;
         }
 
-        // Check if current node is a flagged fraud account (and not the start)
-        if current != start {
-            if let Node::Account { flagged_fraud: true, .. } = &graph[current] {
-                return Some(depth);
-            }
+        // Check total node budget.
+        if visited.len() as u32 >= config.max_total_nodes {
+            break;
         }
 
-        // Explore neighbors (undirected traversal)
-        for edge in graph.edges(current) {
-            let neighbor = edge.target();
-            if !visited.contains_key(&neighbor) {
-                visited.insert(neighbor, depth + 1);
-                queue.push_back(neighbor);
-            }
+        // Skip high-fanout nodes.
+        if fanout_filter.should_skip(&node_id).await {
+            continue;
         }
-        // Also check incoming edges (petgraph directed graph, traverse both ways)
-        for edge in graph.edges_directed(current, petgraph::Direction::Incoming) {
-            let neighbor = edge.source();
-            if !visited.contains_key(&neighbor) {
-                visited.insert(neighbor, depth + 1);
-                queue.push_back(neighbor);
+
+        // Fetch neighbors from the graph database.
+        // In production, this is a batched Cypher/Gremlin query.
+        let neighbors = fetch_neighbors(
+            graph,
+            &node_id,
+            &node_type,
+            config.max_fanout_per_node,
+            config.edge_recency_days,
+        ).await?;
+
+        for neighbor in neighbors {
+            if visited.contains(&neighbor.node_id) {
+                continue;
+            }
+            visited.insert(neighbor.node_id.clone());
+
+            let node = DiscoveredNode {
+                node_id: neighbor.node_id.clone(),
+                node_type: neighbor.node_type,
+                hop_distance: depth + 1,
+                is_fraud: neighbor.is_fraud,
+                parent_edge_type: neighbor.edge_type.clone(),
+            };
+
+            if node.is_fraud {
+                fraud_nodes.push(node.clone());
+            }
+            discovered.push(node);
+
+            // Only continue BFS from non-leaf hops.
+            if depth + 1 < config.max_hops {
+                queue.push_back((
+                    neighbor.node_id,
+                    neighbor.node_type,
+                    depth + 1,
+                    neighbor.edge_type,
+                ));
             }
         }
     }
 
-    None
+    Ok(BfsResult {
+        nodes: discovered,
+        fraud_nodes,
+        visited_count: visited.len() as u32,
+        max_hop_reached: config.max_hops,
+        timed_out,
+    })
+}
+
+/// Placeholder: fetch neighbors from the graph database.
+async fn fetch_neighbors(
+    _graph: &dyn GraphTraversal,
+    _node_id: &str,
+    _node_type: &NodeType,
+    _max_fanout: u32,
+    _recency_days: u32,
+) -> Result<Vec<NeighborInfo>, GraphError> {
+    // In production: execute a Cypher query like
+    //   MATCH (n {id: $node_id})-[r]-(m)
+    //   WHERE r.last_seen > datetime() - duration({days: $recency})
+    //   RETURN m, type(r) LIMIT $max_fanout
+    Ok(vec![])
+}
+
+struct NeighborInfo {
+    node_id: String,
+    node_type: NodeType,
+    edge_type: String,
+    is_fraud: bool,
 }
 ```
 
-</details>
+---
 
-### Exercise 2: Supernode Detection
+## Computing the Graph Risk Score
 
-Write a Cypher query that identifies all nodes in the graph with degree > 500 and labels them as `:Supernode`. Then write a modified traversal query that skips supernodes. Measure the latency difference.
+Raw BFS results need to be aggregated into a single **graph risk score** that the ML model can consume as a feature. We use a weighted scoring formula:
 
-<details>
-<summary>Solution</summary>
+```rust
+/// Compute a composite graph risk score from BFS results.
+///
+/// The score is a weighted combination of:
+/// - Proximity to fraud: closer fraud nodes contribute more.
+/// - Fraud density: what fraction of the neighborhood is fraud-flagged.
+/// - Shared-attribute concentration: how many accounts share devices/IPs.
+/// - Cluster density: how interconnected the local subgraph is.
+fn compute_graph_risk_score(bfs: &BfsResult, config: &ScoringWeights) -> f64 {
+    if bfs.nodes.is_empty() {
+        return 0.0;
+    }
 
-```cypher
-// Step 1: Label supernodes
-MATCH (n)
-WITH n, size((n)--()) AS degree
-WHERE degree > 500
-SET n:Supernode
-SET n.degree = degree
-RETURN labels(n), n.id, degree
-ORDER BY degree DESC;
+    // 1. Proximity score: inverse-distance weighting of fraud nodes.
+    let proximity_score = if bfs.fraud_nodes.is_empty() {
+        0.0
+    } else {
+        let weighted_sum: f64 = bfs
+            .fraud_nodes
+            .iter()
+            .map(|n| 1.0 / (n.hop_distance as f64))
+            .sum();
+        // Normalize by max possible (all nodes at hop 1 are fraud).
+        let max_possible = bfs.nodes.len() as f64;
+        (weighted_sum / max_possible).min(1.0)
+    };
 
-// Step 2: Traversal that skips supernodes
-MATCH path = shortestPath(
-    (start:Account {id: $account_id})-[*1..3]-(fraud:Account {flagged_fraud: true})
-)
-WHERE fraud <> start
-  AND NONE(n IN nodes(path) WHERE n:Supernode)
-  AND ALL(r IN relationships(path) WHERE r.last_seen > datetime() - duration('P30D'))
-RETURN
-    fraud.id AS fraud_account,
-    length(path) AS hops
-ORDER BY hops ASC
-LIMIT 5;
+    // 2. Fraud density: fraction of discovered nodes that are fraud-flagged.
+    let fraud_density = bfs.fraud_nodes.len() as f64 / bfs.nodes.len() as f64;
+
+    // 3. Shared-attribute concentration.
+    let shared_device_count = bfs
+        .nodes
+        .iter()
+        .filter(|n| matches!(n.node_type, NodeType::Account)
+            && n.parent_edge_type == "USES_DEVICE")
+        .count() as f64;
+    let concentration = (shared_device_count / 10.0).min(1.0); // normalize
+
+    // 4. Cluster density: edges / possible edges in the discovered subgraph.
+    //    Approximated by the ratio of edges to nodes.
+    let cluster_density = if bfs.nodes.len() > 1 {
+        let edges = bfs.nodes.len() as f64; // each node discovered via one edge
+        let max_edges = (bfs.nodes.len() as f64) * (bfs.nodes.len() as f64 - 1.0) / 2.0;
+        edges / max_edges
+    } else {
+        0.0
+    };
+
+    // Weighted combination.
+    let score = config.proximity_weight * proximity_score
+        + config.density_weight * fraud_density
+        + config.concentration_weight * concentration
+        + config.cluster_weight * cluster_density;
+
+    score.clamp(0.0, 1.0)
+}
+
+#[derive(Debug, Clone)]
+struct ScoringWeights {
+    proximity_weight: f64,
+    density_weight: f64,
+    concentration_weight: f64,
+    cluster_weight: f64,
+}
+
+impl Default for ScoringWeights {
+    fn default() -> Self {
+        Self {
+            proximity_weight: 0.40,
+            density_weight: 0.30,
+            concentration_weight: 0.20,
+            cluster_weight: 0.10,
+        }
+    }
+}
 ```
-
-**Expected latency improvement:**
-| Query | Without Supernode Skip | With Supernode Skip |
-|---|---|---|
-| 3-hop BFS (cold cache) | 25–50ms | 5–10ms |
-| 3-hop BFS (warm cache) | 8–15ms | 3–6ms |
-
-Skipping supernodes typically provides a **3–5x speedup** by eliminating combinatorial explosion at high-degree nodes.
-
-</details>
 
 ---
 
+## Ring Detection: Finding Organized Fraud
+
+Beyond scoring individual accounts, the graph enables **ring detection** — identifying clusters of accounts that are likely operated by the same fraudster or fraud syndicate.
+
+### What Makes a Ring?
+
+A fraud ring is a tightly connected subgraph where:
+
+1. Multiple accounts share a small number of devices and/or IPs.
+2. The accounts were created within a similar time window.
+3. The accounts exhibit coordinated transaction patterns (same merchant, same time).
+
+```mermaid
+graph TB
+    subgraph "Fraud Ring — 4 Synthetic Identities"
+        A1["Account A<br/>Created: Jan 3"]
+        A2["Account B<br/>Created: Jan 4"]
+        A3["Account C<br/>Created: Jan 4"]
+        A4["Account D<br/>Created: Jan 5"]
+    end
+
+    subgraph "Shared Infrastructure"
+        D1["Device<br/>fp: abc123"]
+        D2["Device<br/>fp: def456"]
+        IP1["IP: 203.0.113.42<br/>(residential proxy)"]
+    end
+
+    subgraph "Shared Payment"
+        C1["Card ****1234<br/>(stolen)"]
+        C2["Card ****5678<br/>(stolen)"]
+    end
+
+    A1 -->|USES_DEVICE| D1
+    A2 -->|USES_DEVICE| D1
+    A2 -->|USES_DEVICE| D2
+    A3 -->|USES_DEVICE| D2
+    A4 -->|USES_DEVICE| D2
+
+    A1 -->|LOGGED_IN_FROM| IP1
+    A2 -->|LOGGED_IN_FROM| IP1
+    A3 -->|LOGGED_IN_FROM| IP1
+    A4 -->|LOGGED_IN_FROM| IP1
+
+    A1 -->|PAYS_WITH| C1
+    A2 -->|PAYS_WITH| C1
+    A3 -->|PAYS_WITH| C2
+    A4 -->|PAYS_WITH| C2
+
+    style A1 fill:#e74c3c,color:#fff
+    style A2 fill:#e74c3c,color:#fff
+    style A3 fill:#e74c3c,color:#fff
+    style A4 fill:#e74c3c,color:#fff
+    style D1 fill:#3498db,color:#fff
+    style D2 fill:#3498db,color:#fff
+    style IP1 fill:#2ecc71,color:#fff
+    style C1 fill:#f39c12,color:#fff
+    style C2 fill:#f39c12,color:#fff
+```
+
+All four accounts connected through two shared devices, one shared IP, and two shared stolen cards — this is a textbook fraud ring.
+
+### The Ring Detection Algorithm
+
+We use a **Union-Find (Disjoint Set)** approach combined with BFS clustering:
+
+```rust
+/// A detected fraud ring: a cluster of accounts linked by shared
+/// devices, IPs, or other attributes.
+#[derive(Debug, Serialize, Deserialize)]
+pub struct FraudRing {
+    pub ring_id: String,
+    pub accounts: Vec<String>,
+    pub shared_devices: Vec<String>,
+    pub shared_ips: Vec<String>,
+    pub shared_cards: Vec<String>,
+    pub ring_size: usize,
+    pub fraud_density: f64,
+    pub earliest_account_created: DateTime<Utc>,
+    pub latest_account_created: DateTime<Utc>,
+    /// How tightly connected the ring is (0.0 to 1.0).
+    pub cohesion_score: f64,
+}
+
+/// Union-Find data structure for clustering connected accounts.
+struct UnionFind {
+    parent: Vec<usize>,
+    rank: Vec<usize>,
+}
+
+impl UnionFind {
+    fn new(n: usize) -> Self {
+        Self {
+            parent: (0..n).collect(),
+            rank: vec![0; n],
+        }
+    }
+
+    fn find(&mut self, x: usize) -> usize {
+        if self.parent[x] != x {
+            self.parent[x] = self.find(self.parent[x]); // path compression
+        }
+        self.parent[x]
+    }
+
+    fn union(&mut self, x: usize, y: usize) {
+        let rx = self.find(x);
+        let ry = self.find(y);
+        if rx == ry {
+            return;
+        }
+        // Union by rank.
+        match self.rank[rx].cmp(&self.rank[ry]) {
+            std::cmp::Ordering::Less => self.parent[rx] = ry,
+            std::cmp::Ordering::Greater => self.parent[ry] = rx,
+            std::cmp::Ordering::Equal => {
+                self.parent[ry] = rx;
+                self.rank[rx] += 1;
+            }
+        }
+    }
+}
+
+/// Detect fraud rings by clustering accounts that share devices or IPs.
+///
+/// Algorithm:
+/// 1. For each attribute node (device, IP), find all connected accounts.
+/// 2. Union those accounts together.
+/// 3. Extract clusters of size ≥ min_ring_size.
+/// 4. Compute cohesion and fraud density for each cluster.
+fn detect_rings(
+    shared_device_map: &HashMap<String, Vec<String>>,  // device_id → [account_ids]
+    shared_ip_map: &HashMap<String, Vec<String>>,      // ip → [account_ids]
+    fraud_accounts: &HashSet<String>,
+    min_ring_size: usize,
+) -> Vec<FraudRing> {
+    // Build account index.
+    let mut account_set: HashSet<String> = HashSet::new();
+    for accounts in shared_device_map.values().chain(shared_ip_map.values()) {
+        for acc in accounts {
+            account_set.insert(acc.clone());
+        }
+    }
+    let accounts: Vec<String> = account_set.into_iter().collect();
+    let account_index: HashMap<String, usize> = accounts
+        .iter()
+        .enumerate()
+        .map(|(i, a)| (a.clone(), i))
+        .collect();
+
+    let mut uf = UnionFind::new(accounts.len());
+
+    // Union accounts sharing the same device.
+    for device_accounts in shared_device_map.values() {
+        if device_accounts.len() < 2 {
+            continue;
+        }
+        let first = account_index[&device_accounts[0]];
+        for acc in &device_accounts[1..] {
+            let idx = account_index[acc];
+            uf.union(first, idx);
+        }
+    }
+
+    // Union accounts sharing the same IP.
+    for ip_accounts in shared_ip_map.values() {
+        if ip_accounts.len() < 2 {
+            continue;
+        }
+        let first = account_index[&ip_accounts[0]];
+        for acc in &ip_accounts[1..] {
+            let idx = account_index[acc];
+            uf.union(first, idx);
+        }
+    }
+
+    // Extract clusters.
+    let mut clusters: HashMap<usize, Vec<String>> = HashMap::new();
+    for (i, acc) in accounts.iter().enumerate() {
+        let root = uf.find(i);
+        clusters.entry(root).or_default().push(acc.clone());
+    }
+
+    // Filter to rings above minimum size and compute signals.
+    clusters
+        .into_values()
+        .filter(|cluster| cluster.len() >= min_ring_size)
+        .map(|cluster| {
+            let fraud_count = cluster
+                .iter()
+                .filter(|a| fraud_accounts.contains(*a))
+                .count();
+            let fraud_density = fraud_count as f64 / cluster.len() as f64;
+
+            FraudRing {
+                ring_id: uuid::Uuid::new_v4().to_string(),
+                accounts: cluster.clone(),
+                shared_devices: vec![], // populated from shared_device_map
+                shared_ips: vec![],     // populated from shared_ip_map
+                shared_cards: vec![],
+                ring_size: cluster.len(),
+                fraud_density,
+                earliest_account_created: Utc::now(), // populated from graph
+                latest_account_created: Utc::now(),
+                cohesion_score: 0.0, // computed separately
+            }
+        })
+        .collect()
+}
+```
+
+---
+
+## Graph Ingestion Pipeline
+
+The identity graph must be kept **fresh**. Every transaction, login, and device event should update the graph within seconds. We use a **Kafka → Flink → Graph DB** pipeline:
+
+```mermaid
+sequenceDiagram
+    participant TXN as Transaction Service
+    participant KFK as Kafka
+    participant FLK as Flink Edge Builder
+    participant NEO as Neo4j Writer
+    participant CACHE as Edge Cache (Redis)
+    participant BFS as BFS Engine
+
+    TXN->>KFK: TransactionEvent {account, card, device, ip}
+    KFK->>FLK: Consume event stream
+
+    Note over FLK: Extract identity edges:<br/>account→device<br/>account→ip<br/>account→card
+
+    FLK->>NEO: MERGE (a:Account {id: $acct})<br/>MERGE (d:Device {id: $dev})<br/>MERGE (a)-[r:USES_DEVICE]->(d)<br/>SET r.last_seen = $ts
+    FLK->>CACHE: SET edge:{acct}:{dev} = {last_seen: $ts}
+
+    Note over NEO: Graph is now updated<br/>for next BFS traversal
+
+    BFS->>NEO: BFS query for incoming transaction
+    NEO-->>BFS: Traversal result includes new edge
+```
+
+### Edge Deduplication and Upsert
+
+The graph must handle **upserts** — if an edge already exists, update its `last_seen` timestamp rather than creating a duplicate:
+
+```rust
+/// Build a Cypher MERGE query that upserts an edge.
+/// MERGE is idempotent: creates the edge if it doesn't exist,
+/// updates properties if it does.
+fn build_upsert_query(edge: &IdentityEdge) -> String {
+    let from_label = node_type_label(edge.from_type);
+    let to_label = node_type_label(edge.to_type);
+
+    format!(
+        "MERGE (a:{from_label} {{id: $from_id}}) \
+         MERGE (b:{to_label} {{id: $to_id}}) \
+         MERGE (a)-[r:{edge_type}]->(b) \
+         SET r.last_seen = $observed_at, \
+             r += $properties",
+        from_label = from_label,
+        to_label = to_label,
+        edge_type = edge.edge_type,
+    )
+}
+
+fn node_type_label(nt: NodeType) -> &'static str {
+    match nt {
+        NodeType::Account => "Account",
+        NodeType::Device => "Device",
+        NodeType::IpAddress => "IpAddress",
+        NodeType::Card => "Card",
+        NodeType::Email => "Email",
+        NodeType::Phone => "Phone",
+        NodeType::Address => "Address",
+    }
+}
+```
+
+---
+
+## Caching the Graph: Hot-Path Optimization
+
+For the most frequently queried accounts (high-transaction merchants, repeat customers), executing a full BFS on every transaction is wasteful. We use a **two-tier caching strategy**:
+
+### Tier 1: Redis Edge Cache
+
+Cache the **1-hop neighborhood** of recently seen accounts in Redis. The BFS engine checks Redis first and only falls back to Neo4j for hops 2+:
+
+```rust
+use redis::AsyncCommands;
+
+/// Cache the 1-hop neighborhood of an account in Redis.
+/// TTL: 60 seconds — edges change infrequently within a minute.
+async fn cache_one_hop(
+    redis: &mut redis::aio::MultiplexedConnection,
+    account_id: &str,
+    neighbors: &[NeighborInfo],
+) -> Result<(), redis::RedisError> {
+    let key = format!("graph:1hop:{}", account_id);
+    let serialized = serde_json::to_string(neighbors)
+        .expect("neighbor serialization should not fail");
+    redis.set_ex(&key, &serialized, 60).await?;
+    Ok(())
+}
+
+/// Try to fetch 1-hop neighbors from cache before hitting Neo4j.
+async fn get_cached_one_hop(
+    redis: &mut redis::aio::MultiplexedConnection,
+    account_id: &str,
+) -> Option<Vec<NeighborInfo>> {
+    let key = format!("graph:1hop:{}", account_id);
+    let cached: Option<String> = redis.get(&key).await.ok()?;
+    cached.and_then(|s| serde_json::from_str(&s).ok())
+}
+```
+
+### Tier 2: Precomputed Graph Risk Scores
+
+For the top 10% of accounts by transaction volume, precompute the graph risk score in a **background job** every 30 seconds and cache the result:
+
+```rust
+/// Background task: precompute graph risk scores for high-volume accounts.
+async fn precompute_graph_scores(
+    high_volume_accounts: &[String],
+    graph: &dyn GraphTraversal,
+    redis: &mut redis::aio::MultiplexedConnection,
+    config: &TraversalConfig,
+) -> Result<u32, GraphError> {
+    let mut updated = 0;
+    for account_id in high_volume_accounts {
+        let signal = graph.compute_risk(account_id, config.max_hops, config.timeout_ms).await?;
+        let key = format!("graph:risk:{}", account_id);
+        let serialized = serde_json::to_string(&signal)
+            .expect("signal serialization should not fail");
+        let _: () = redis
+            .set_ex(&key, &serialized, 60)
+            .await
+            .map_err(|e| GraphError::Connection(e.to_string()))?;
+        updated += 1;
+    }
+    Ok(updated)
+}
+```
+
+---
+
+## Choosing a Graph Database
+
+| Feature | Neo4j | Amazon Neptune | TigerGraph | JanusGraph |
+|---|---|---|---|---|
+| **Query Language** | Cypher | openCypher / Gremlin | GSQL | Gremlin |
+| **Latency (3-hop, 1K nodes)** | ~8ms | ~12ms | ~5ms | ~15ms |
+| **Max Graph Size** | 34B nodes (Enterprise) | Billions (managed) | Trillions | Billions |
+| **ACID Transactions** | ✅ Full | ✅ | ✅ | ✅ (via backend) |
+| **Managed Service** | Neo4j Aura | ✅ AWS-native | TigerGraph Cloud | Self-managed |
+| **Rust Driver** | `neo4rs` crate | Bolt protocol / HTTP | HTTP REST | Gremlin-client |
+| **Best For** | Rich Cypher queries, visualization | AWS-native teams | Extreme scale | Open-source flexibility |
+
+### Our Recommendation
+
+For fraud detection, **Neo4j** is the most pragmatic choice:
+
+1. **Cypher** is the most expressive graph query language for fraud patterns.
+2. The `neo4rs` Rust crate provides async, connection-pooled Bolt protocol access.
+3. The visualization tools (Neo4j Bloom) are invaluable for analyst investigations.
+4. Community and ecosystem support is unmatched.
+
+For AWS-native shops, **Neptune** is a strong alternative with zero operational overhead.
+
+---
+
+## Integration with the Fraud Gateway
+
+The graph risk signal is one of the five parallel subsystem calls from the fraud gateway (Chapter 1). Here's how it plugs in:
+
+```rust
+use std::time::Instant;
+use tokio::time::{timeout, Duration};
+
+/// Fetch graph risk signal with timeout and fallback.
+///
+/// This is called in parallel with the feature store, device fingerprint,
+/// velocity service, and account history from the scatter-gather orchestrator.
+pub async fn fetch_graph_risk(
+    account_id: &str,
+    graph: &dyn GraphTraversal,
+    redis: &mut redis::aio::MultiplexedConnection,
+    config: &TraversalConfig,
+) -> GraphRiskSignal {
+    let start = Instant::now();
+
+    // Try precomputed cache first.
+    let cache_key = format!("graph:risk:{}", account_id);
+    if let Ok(Some(cached)) = redis.get::<_, Option<String>>(&cache_key).await {
+        if let Ok(signal) = serde_json::from_str::<GraphRiskSignal>(&cached) {
+            return signal;
+        }
+    }
+
+    // Fall back to live BFS with timeout.
+    let result = timeout(
+        Duration::from_millis(config.timeout_ms),
+        graph.compute_risk(account_id, config.max_hops, config.timeout_ms),
+    )
+    .await;
+
+    match result {
+        Ok(Ok(signal)) => signal,
+        Ok(Err(_)) | Err(_) => {
+            // Timeout or error: return a safe default.
+            // We do NOT block the transaction because the graph is slow.
+            GraphRiskSignal {
+                request_id: uuid::Uuid::new_v4(),
+                account_id: account_id.to_string(),
+                graph_risk_score: 0.0, // assume safe on timeout
+                fraud_neighbor_count: 0,
+                shortest_path_to_fraud: -1,
+                shared_device_account_count: 0,
+                shared_ip_account_count: 0,
+                is_ring_member: false,
+                cluster_density: 0.0,
+                traversal_latency_us: start.elapsed().as_micros() as u64,
+                hop_details: vec![],
+            }
+        }
+    }
+}
+```
+
+---
+
+## Graph Features for the ML Model
+
+The graph risk signal is decomposed into individual features that the ML model consumes alongside tabular features from the feature store:
+
+| Feature Name | Type | Description | Typical Range |
+|---|---|---|---|
+| `graph_risk_score` | f64 | Composite graph risk score | 0.0 – 1.0 |
+| `fraud_neighbor_count` | u32 | Fraud-flagged accounts within 3 hops | 0 – 100+ |
+| `shortest_path_to_fraud` | i32 | Hop distance to nearest fraud node | -1, 1, 2, 3 |
+| `shared_device_account_count` | u32 | Accounts sharing a device with target | 0 – 50+ |
+| `shared_ip_account_count` | u32 | Accounts sharing an IP with target | 0 – 1000+ |
+| `is_ring_member` | bool | Whether account belongs to a detected ring | 0 or 1 |
+| `cluster_density` | f64 | Interconnectedness of local subgraph | 0.0 – 1.0 |
+| `hop1_fraud_ratio` | f64 | Fraction of 1-hop neighbors flagged as fraud | 0.0 – 1.0 |
+| `hop2_fraud_ratio` | f64 | Fraction of 2-hop neighbors flagged as fraud | 0.0 – 1.0 |
+| `account_creation_velocity` | f64 | Avg days between creation of accounts in cluster | 0.1 – 365+ |
+
+These features are **extremely predictive**. In production systems, graph features alone can yield an AUC of 0.85+, and when combined with velocity and behavioral features, push total model AUC above 0.97.
+
+---
+
+## Operational Concerns
+
+### Graph Size and Memory
+
+| Entity | Estimated Count (large PSP) | Storage |
+|---|---|---|
+| Account nodes | 500M | ~50 GB |
+| Device nodes | 200M | ~20 GB |
+| IP nodes | 1B | ~80 GB |
+| Card nodes | 300M | ~30 GB |
+| Edges (all types) | 5B | ~400 GB |
+| **Total graph** | — | **~580 GB** |
+
+Neo4j Enterprise can handle this on a 3-node cluster with 256 GB RAM each, keeping the hot portion of the graph (recent 90 days of edges) in memory.
+
+### Graph Compaction
+
+Old edges decay in relevance. A nightly **compaction job** prunes edges older than the retention window:
+
+```cypher
+// Delete edges not seen in the last 180 days.
+CALL apoc.periodic.iterate(
+    "MATCH ()-[r]->() WHERE r.last_seen < datetime() - duration({days: 180}) RETURN r",
+    "DELETE r",
+    {batchSize: 10000}
+)
+```
+
+### Monitoring
+
+| Metric | Target | Alert Threshold |
+|---|---|---|
+| P99 BFS latency | ≤ 10ms | > 15ms |
+| Cache hit rate (Tier 1) | ≥ 60% | < 40% |
+| Graph write latency | ≤ 5ms | > 10ms |
+| Nodes visited per query (avg) | < 500 | > 1,500 |
+| Ring detection batch time | ≤ 30s | > 60s |
+
+---
+
+## Amazon Neptune Alternative: Gremlin Queries
+
+For teams on AWS, here is the equivalent traversal in Gremlin:
+
+```groovy
+// 3-hop fraud neighbor traversal in Gremlin (Amazon Neptune)
+g.V().has('Account', 'account_id', accountId)
+  .repeat(
+    both('USES_DEVICE', 'LOGGED_IN_FROM', 'PAYS_WITH', 'REGISTERED_WITH', 'VERIFIED_WITH')
+    .simplePath()
+  )
+  .times(3)
+  .hasLabel('Account')
+  .has('risk_label', 'fraud')
+  .path()
+  .limit(100)
+```
+
+```groovy
+// Shared device count
+g.V().has('Account', 'account_id', accountId)
+  .out('USES_DEVICE')
+  .in('USES_DEVICE')
+  .where(neq('start'))
+  .dedup()
+  .count()
+```
+
+---
+
+## Testing the Graph Layer
+
+### Property-Based Testing
+
+Graph traversal is notoriously hard to test with unit tests alone. We use **property-based testing** (via the `proptest` crate) to assert invariants:
+
+```rust
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use proptest::prelude::*;
+
+    proptest! {
+        /// Invariant: the graph risk score is always in [0.0, 1.0].
+        #[test]
+        fn graph_risk_score_is_bounded(
+            fraud_count in 0u32..100,
+            total_count in 1u32..1000,
+            max_hop in 1u8..4,
+        ) {
+            let bfs = BfsResult {
+                nodes: (0..total_count)
+                    .map(|i| DiscoveredNode {
+                        node_id: format!("node_{}", i),
+                        node_type: NodeType::Account,
+                        hop_distance: (i as u8 % max_hop) + 1,
+                        is_fraud: i < fraud_count,
+                        parent_edge_type: "USES_DEVICE".to_string(),
+                    })
+                    .collect(),
+                fraud_nodes: (0..fraud_count.min(total_count))
+                    .map(|i| DiscoveredNode {
+                        node_id: format!("node_{}", i),
+                        node_type: NodeType::Account,
+                        hop_distance: (i as u8 % max_hop) + 1,
+                        is_fraud: true,
+                        parent_edge_type: "USES_DEVICE".to_string(),
+                    })
+                    .collect(),
+                visited_count: total_count,
+                max_hop_reached: max_hop,
+                timed_out: false,
+            };
+
+            let score = compute_graph_risk_score(&bfs, &ScoringWeights::default());
+            prop_assert!(score >= 0.0 && score <= 1.0,
+                "Score {} is out of bounds", score);
+        }
+
+        /// Invariant: more fraud neighbors → higher risk score.
+        #[test]
+        fn more_fraud_means_higher_score(
+            fraud_count_a in 0u32..50,
+            fraud_count_b in 51u32..100,
+            total_count in 100u32..200,
+        ) {
+            let make_bfs = |fraud_count: u32| BfsResult {
+                nodes: (0..total_count)
+                    .map(|i| DiscoveredNode {
+                        node_id: format!("node_{}", i),
+                        node_type: NodeType::Account,
+                        hop_distance: 2,
+                        is_fraud: i < fraud_count,
+                        parent_edge_type: "USES_DEVICE".to_string(),
+                    })
+                    .collect(),
+                fraud_nodes: (0..fraud_count)
+                    .map(|i| DiscoveredNode {
+                        node_id: format!("node_{}", i),
+                        node_type: NodeType::Account,
+                        hop_distance: 2,
+                        is_fraud: true,
+                        parent_edge_type: "USES_DEVICE".to_string(),
+                    })
+                    .collect(),
+                visited_count: total_count,
+                max_hop_reached: 3,
+                timed_out: false,
+            };
+
+            let weights = ScoringWeights::default();
+            let score_a = compute_graph_risk_score(&make_bfs(fraud_count_a), &weights);
+            let score_b = compute_graph_risk_score(&make_bfs(fraud_count_b), &weights);
+            prop_assert!(score_b >= score_a,
+                "More fraud ({}) should score ≥ less fraud ({}): {} vs {}",
+                fraud_count_b, fraud_count_a, score_b, score_a);
+        }
+    }
+}
+```
+
+---
+
+## Summary
+
 > **Key Takeaways**
 >
-> 1. **Graph databases are not optional for organized fraud detection.** Relational JOINs fail at 3+ hops. Graph traversals are O(neighbors) per hop, not O(table_size).
-> 2. **The identity graph models entities as nodes and shared attributes as edges.** Accounts, devices, IPs, cards, and emails are nodes. "Account A used Device D" is an edge. The graph surfaces connections that are invisible in tabular data.
-> 3. **Supernode handling is critical.** A corporate IP with 100,000 connections will blow your latency budget. Cap node degree in queries or pre-label supernodes during ingestion.
-> 4. **Use the hybrid approach in production.** Precompute stable graph features (community detection, PageRank) hourly. Execute real-time BFS for fresh signals. Combine both in the fraud gateway.
-> 5. **Never store raw PII in the graph.** Hash or tokenize all personal identifiers (PANs, emails, phones). The graph needs to match entities, not display personal data.
+> 1. **Fraud is a graph problem.** Individual transaction scoring misses organized crime rings that share devices, IPs, and stolen credentials across synthetic identities.
+> 2. **The identity graph** models entities (Account, Device, IP, Card, Email, Phone, Address) as nodes and shared-attribute relationships as edges. Two accounts sharing a device are 2 hops apart.
+> 3. **Bounded BFS** with aggressive pruning (fanout caps, temporal filtering, high-fanout node blacklists) keeps 3-hop traversals within a 10ms latency budget.
+> 4. **Graph risk features** — proximity to fraud, fraud density, shared-attribute concentration, cluster density — are among the most predictive signals for ML models (AUC 0.85+ from graph features alone).
+> 5. **Ring detection** uses Union-Find clustering over shared attributes to identify coordinated fraud operations.
+> 6. **Two-tier caching** (Redis 1-hop cache + precomputed risk scores) reduces Neo4j load by 60%+ and ensures the graph subsystem respects the 10ms budget allocated by the scatter-gather orchestrator.
+> 7. **Graph ingestion** via Kafka → Flink → Neo4j keeps the identity graph fresh within seconds of each transaction event.
+> 8. **Graceful degradation**: if the graph times out, the fraud gateway proceeds with a safe default (score 0.0) — the ML model and rules engine provide defense in depth.
