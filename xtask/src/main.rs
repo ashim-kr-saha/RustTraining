@@ -289,6 +289,12 @@ const BOOKS: &[(&str, &str, &str, &str)] = &[
         "P2P gossip, Merkle trie, BFT consensus, parallel execution, RocksDB",
         "expert",
     ),
+    (
+        "social-newsfeed-book",
+        "System Design: The Infinite Social Newsfeed",
+        "Fan-out, social graph, Two-Tower ML ranking, Flutter infinite scroll, Count-Min Sketch",
+        "expert",
+    ),
 ];
 
 fn project_root() -> PathBuf {
