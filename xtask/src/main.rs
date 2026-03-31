@@ -229,6 +229,12 @@ const BOOKS: &[(&str, &str, &str, &str)] = &[
         "Widget trees, Riverpod/BLoC, Isolates, FFI, adaptive desktop UX",
         "deep-dive",
     ),
+    (
+        "system-design-book",
+        "System Design: Building a Distributed Message Broker in Rust",
+        "Append-only log, io_uring, sendfile, Raft consensus, backpressure",
+        "expert",
+    ),
 ];
 
 fn project_root() -> PathBuf {
