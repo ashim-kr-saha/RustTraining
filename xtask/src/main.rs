@@ -205,6 +205,12 @@ const BOOKS: &[(&str, &str, &str, &str)] = &[
         "AI-assisted workflows, PRD-to-production, schema-first, CI/CD, observability",
         "practices",
     ),
+    (
+        "growth-engineering-book",
+        "Growth Engineering: Building Data-Driven Products at Scale",
+        "Feature flags, A/B testing, event telemetry, data pipelines, growth loops",
+        "practices",
+    ),
 ];
 
 fn project_root() -> PathBuf {
