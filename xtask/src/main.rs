@@ -182,6 +182,12 @@ const BOOKS: &[(&str, &str, &str, &str)] = &[
         "expert",
     ),
     (
+        "quant-finance-book",
+        "Hardcore Quantitative Finance: Low-Latency Systems and HFT Architecture",
+        "Market micro-structure, kernel bypass, NUMA, FPGA tick-to-trade",
+        "expert",
+    ),
+    (
         "staff-engineer-book",
         "The Staff Engineer's Playbook: Navigating Ambiguity, Influence, and Impact",
         "Staff archetypes, RFCs, cross-team influence, behavioral interviews, L6/L7 prep",
