@@ -223,6 +223,12 @@ const BOOKS: &[(&str, &str, &str, &str)] = &[
         "B+Trees, buffer pools, MVCC, query optimizers, vectorized execution",
         "expert",
     ),
+    (
+        "flutter-omni-book",
+        "The Omni-Platform Flutter Architect",
+        "Widget trees, Riverpod/BLoC, Isolates, FFI, adaptive desktop UX",
+        "deep-dive",
+    ),
 ];
 
 fn project_root() -> PathBuf {
