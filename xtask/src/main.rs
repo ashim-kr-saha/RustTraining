@@ -259,6 +259,12 @@ const BOOKS: &[(&str, &str, &str, &str)] = &[
         "Firecracker MicroVMs, KVM isolation, memory snapshotting, eBPF billing",
         "expert",
     ),
+    (
+        "llm-inference-book",
+        "System Design: The Distributed LLM Inference Engine",
+        "PagedAttention, continuous batching, tensor parallelism, SSE streaming",
+        "expert",
+    ),
 ];
 
 fn project_root() -> PathBuf {
