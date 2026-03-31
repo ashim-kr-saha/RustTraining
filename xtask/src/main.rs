@@ -301,6 +301,12 @@ const BOOKS: &[(&str, &str, &str, &str)] = &[
         "MQTT C10M broker, edge decimation, device twin, TSDB Gorilla compression, rule engine",
         "expert",
     ),
+    (
+        "autonomous-vehicle-book",
+        "System Design: The Autonomous Vehicle Software Brain",
+        "RTOS, sensor fusion, SLAM, MPC control, fleet simulation, OTA",
+        "expert",
+    ),
 ];
 
 fn project_root() -> PathBuf {
