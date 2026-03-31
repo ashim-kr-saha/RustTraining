@@ -295,6 +295,12 @@ const BOOKS: &[(&str, &str, &str, &str)] = &[
         "Fan-out, social graph, Two-Tower ML ranking, Flutter infinite scroll, Count-Min Sketch",
         "expert",
     ),
+    (
+        "iot-telemetry-book",
+        "System Design: The Global IoT Telemetry Gateway",
+        "MQTT C10M broker, edge decimation, device twin, TSDB Gorilla compression, rule engine",
+        "expert",
+    ),
 ];
 
 fn project_root() -> PathBuf {
