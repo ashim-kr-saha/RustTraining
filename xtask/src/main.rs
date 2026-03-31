@@ -241,6 +241,12 @@ const BOOKS: &[(&str, &str, &str, &str)] = &[
         "Signal Protocol, Flutter+Rust FFI, local-first, WebSocket relay",
         "expert",
     ),
+    (
+        "payment-gateway-book",
+        "System Design: The Zero-Downtime Distributed Payment Gateway",
+        "Idempotency, double-entry ledger, Saga pattern, PCI compliance",
+        "expert",
+    ),
 ];
 
 fn project_root() -> PathBuf {
