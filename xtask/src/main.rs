@@ -374,6 +374,12 @@ const BOOKS: &[(&str, &str, &str, &str)] = &[
         "expert",
     ),
     (
+        "git-sorcerer-book",
+        "The Git Sorcerer's Handbook: Internals, Workflows, and Disaster Recovery",
+        "Object model, interactive rebase, worktrees, bisect, rerere, reflog recovery, filter-repo",
+        "practices",
+    ),
+    (
         "web-crawler-book",
         "System Design: The Global Web Crawler",
         "URL frontier, Bloom filter dedup, SimHash near-dupes, spider traps, tiered blob store",
