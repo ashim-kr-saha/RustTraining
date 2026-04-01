@@ -116,6 +116,12 @@ const BOOKS: &[(&str, &str, &str, &str)] = &[
         "expert",
     ),
     (
+        "observability-platform-book",
+        "System Design: The Petabyte-Scale Observability Platform",
+        "End-to-end SRE & Observability architecture: ingest, TSDB, tracing, streaming alerts, rollups, and cold storage",
+        "expert",
+    ),
+    (
         "api-design-book",
         "Rust API Design & Error Architecture",
         "API guidelines, SemVer, thiserror vs anyhow, build.rs code generation",
@@ -206,6 +212,12 @@ const BOOKS: &[(&str, &str, &str, &str)] = &[
         "practices",
     ),
     (
+        "ai-agent-orchestrator-book",
+        "System Design: The Autonomous AI Agent Orchestrator",
+        "Architecting durable, secure, and cost-efficient orchestrators for autonomous AI agents (stateful workflows, RAG memory, sandboxed execution, token economics, multi-agent routing)",
+        "expert",
+    ),
+    (
         "growth-engineering-book",
         "Growth Engineering: Building Data-Driven Products at Scale",
         "Feature flags, A/B testing, event telemetry, data pipelines, growth loops",
@@ -236,6 +248,12 @@ const BOOKS: &[(&str, &str, &str, &str)] = &[
         "expert",
     ),
     (
+        "edge-cdn-book",
+        "System Design: Building a Global Edge CDN",
+        "Global anycast CDN: BGP anycast, TLS at edge, multi-tier caching, purge fanout, eBPF DDoS mitigation",
+        "expert",
+    ),
+    (
         "e2e-messenger-book",
         "System Design: The E2E Encrypted Omni-Platform Messenger",
         "Signal Protocol, Flutter+Rust FFI, local-first, WebSocket relay",
@@ -251,6 +269,12 @@ const BOOKS: &[(&str, &str, &str, &str)] = &[
         "flash-sale-book",
         "System Design: The Hyper-Scale Flash Sale Engine",
         "Virtual waiting room, Redis Lua inventory, checkout saga, anti-bot PoW",
+        "expert",
+    ),
+    (
+        "fulfillment-routing-book",
+        "System Design: The Global Fulfillment & Routing Engine",
+        "Event-sourced inventory, order DAG, warehouse edge, VRP/LNS solver, demand forecasting",
         "expert",
     ),
     (
@@ -359,6 +383,36 @@ const BOOKS: &[(&str, &str, &str, &str)] = &[
         "video-conferencing-book",
         "System Design: The Massively Scalable Video Conferencing Engine",
         "SFU architecture, WebRTC ICE/STUN/TURN, Simulcast, jitter buffers, FEC, edge cascade",
+        "expert",
+    ),
+    (
+        "messaging-gateway-book",
+        "System Design: The Global Messaging and Routing Gateway",
+        "Global SMS/SMPP messaging gateway: routing, rate-limiting, SMPP pools, DLR reconciliation, webhooks",
+        "expert",
+    ),
+    (
+        "cloud-gaming-book",
+        "System Design: The Cloud Gaming Streaming Engine",
+        "Input-to-photon latency, WebRTC, NVENC, ABR, input virtualization",
+        "expert",
+    ),
+    (
+        "digital-asset-custody-book",
+        "System Design: Institutional Digital Asset Custody",
+        "Hot/cold wallets, MPC/TSS, UTXO management, blockchain indexing, Policy Engine, HSMs",
+        "expert",
+    ),
+    (
+        "fraud-detection-book",
+        "System Design: The Real-Time Fraud Detection Engine",
+        "50ms SLA, streaming feature store (Flink/Redis), identity graph (Neptune), ONNX inference, shadow mode & rules engine",
+        "expert",
+    ),
+    (
+        "matching-engine-book",
+        "System Design: The Ultra-Low Latency Matching Engine",
+        "Event-sourced matching engine: sequencer, LOB, determinism, UDP multicast market data, and ultra-low-latency risk gateway",
         "expert",
     ),
 ];
