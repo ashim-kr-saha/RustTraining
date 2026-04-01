@@ -355,6 +355,12 @@ const BOOKS: &[(&str, &str, &str, &str)] = &[
         "URL frontier, Bloom filter dedup, SimHash near-dupes, spider traps, tiered blob store",
         "expert",
     ),
+    (
+        "video-conferencing-book",
+        "System Design: The Massively Scalable Video Conferencing Engine",
+        "SFU architecture, WebRTC ICE/STUN/TURN, Simulcast, jitter buffers, FEC, edge cascade",
+        "expert",
+    ),
 ];
 
 fn project_root() -> PathBuf {
