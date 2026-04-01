@@ -398,6 +398,12 @@ const BOOKS: &[(&str, &str, &str, &str)] = &[
         "expert",
     ),
     (
+        "video-streaming-book",
+        "System Design: The Global Video Streaming Engine",
+        "Low-latency, adaptive video streaming platform using Rust for transcoding and Flutter for playback",
+        "expert",
+    ),
+    (
         "digital-asset-custody-book",
         "System Design: Institutional Digital Asset Custody",
         "Hot/cold wallets, MPC/TSS, UTXO management, blockchain indexing, Policy Engine, HSMs",
